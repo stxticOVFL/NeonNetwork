@@ -39,6 +39,7 @@ namespace NeonNetwork.Online
             Patching.AddPatch(typeof(Leaderboards), "SetLevel", ApplyReplacement, Patching.PatchTarget.Transpiler);
             Patching.AddPatch(typeof(Leaderboards), "DisplayScores_AsyncMakeRequest", ApplyReplacement, Patching.PatchTarget.Transpiler);
             Patching.AddPatch(typeof(Leaderboards), "GetScoreDataAtRank", ApplyReplacement, Patching.PatchTarget.Transpiler);
+            Patching.AddPatch(typeof(Leaderboards), "OnLeaderboardUploaded", ApplyReplacement, Patching.PatchTarget.Transpiler);
 
             Patching.AddPatch(typeof(LeaderboardScore), "SetScore", PostSetScore, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(Leaderboards), "UpdateFilterButtons", PreFilter, Patching.PatchTarget.Prefix);
@@ -212,20 +213,24 @@ namespace NeonNetwork.Online
             return true;
         }
 
-        static void UploadScore(LevelData level, Leaderboards lb, LeaderboardIntegrationSteam.LeaderboardLoadedCallback callback)
+        static void UploadScore(LevelData level, Leaderboards lb, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb)
         {
             if (!IsCustomStage(level, lb))
             {
                 currentLB = null;
                 currentLevel = null;
-                LeaderboardIntegrationSteam.UploadScore(level, lb, callback);
+                LeaderboardIntegrationSteam.UploadScore(level, lb, cb);
                 return;
             }
+#if !DEBUG
             if (Anticheat.Active)
             {
                 callback?.Invoke(true);
                 return;
             }
+#endif
+
+            NeonNetwork.Logger.DebugMsg($"UploadScore {cb}");
 
             currentLB = lb;
             currentLevel = level;
@@ -244,11 +249,11 @@ namespace NeonNetwork.Online
             var res = req.SendWebRequest();
             res.completed += _ =>
             {
-                NeonNetwork.Logger.DebugMsg($"UploadScore {req.result} {req.responseCode} {Encoding.UTF8.GetString(req.uploadHandler.data)}");
+                NeonNetwork.Logger.DebugMsg($"{req.result} {req.responseCode}");
 
                 if (req.result != UnityWebRequest.Result.Success)
                 {
-                    callback?.Invoke(false, req.result == UnityWebRequest.Result.ConnectionError);
+                    cb?.Invoke(false, req.result == UnityWebRequest.Result.ConnectionError);
                     return;
                 }
 
@@ -277,7 +282,7 @@ namespace NeonNetwork.Online
                     }
                 }
 
-                callback?.Invoke(true);
+                cb?.Invoke(true);
             };
         }
 
@@ -291,6 +296,8 @@ namespace NeonNetwork.Online
                 LeaderboardIntegrationSteam.SetupLeaderboardForLevel(level, lb, cb);
                 return;
             }
+
+            NeonNetwork.Logger.DebugMsg($"SetupLeaderboardForLevel {cb}");
 
             currentLB = lb;
             currentLevel = level;
@@ -309,7 +316,7 @@ namespace NeonNetwork.Online
 
             res.completed += _ =>
             {
-                NeonNetwork.Logger.DebugMsg($"SetupLeaderboardForLevel {req.result} {req.responseCode} {Encoding.UTF8.GetString(req.uploadHandler.data)}");
+                NeonNetwork.Logger.DebugMsg($"{req.result} {req.responseCode}");
 
                 if (req.result != UnityWebRequest.Result.Success)
                 {
@@ -369,6 +376,7 @@ namespace NeonNetwork.Online
                 return;
             }
 
+            NeonNetwork.Logger.DebugMsg("DownloadEntries");
 
             currentScores = null;
             currentStartIndex = -1;
@@ -385,7 +393,7 @@ namespace NeonNetwork.Online
 
             res.completed += _ =>
             {
-                NeonNetwork.Logger.DebugMsg($"DownloadEntries {req.result} {req.responseCode} {Encoding.UTF8.GetString(req.uploadHandler.data)}");
+                NeonNetwork.Logger.DebugMsg($"{req.result} {req.responseCode}");
                 if (req.result != UnityWebRequest.Result.Success)
                 {
                     onLBFound.Invoke(currentLB, [false, req.result == UnityWebRequest.Result.ConnectionError]);

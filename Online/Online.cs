@@ -56,7 +56,9 @@ namespace NeonNetwork.Online
         public static UnityWebRequest Post(string route, object data, bool auth = true)
         {
             var req = new UnityWebRequest(URL + route, "POST", new DownloadHandlerBuffer(), null);
-            req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(JSON.Dump(data, EncodeOptions.NoTypeHints)));
+            var d = JSON.Dump(data, EncodeOptions.NoTypeHints);
+            NeonNetwork.Logger.DebugMsg($"{route} {d}");
+            req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(d));
             req.uploadHandler.contentType = "application/json";
             SetupHeaders(req, auth);
             return req;
