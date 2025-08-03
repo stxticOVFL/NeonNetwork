@@ -225,7 +225,7 @@ namespace NeonNetwork.Online
 #if !DEBUG
             if (Anticheat.Active)
             {
-                callback?.Invoke(true);
+                cb?.Invoke(true);
                 return;
             }
 #endif
