@@ -241,7 +241,7 @@ namespace NeonNetwork.Online
             {
                 level_id = level.levelID,
                 steam_id = Online.steamID.ToString(),
-                time = GameDataManager.GetLevelStats(level.levelID).GetTimeLastMicroseconds(),
+                time = GameDataManager.GetLevelStats(level.levelID).GetTimeBestMicroseconds(),
                 take = lb.simultaneousScoreCount
             };
 
