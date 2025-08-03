@@ -89,11 +89,11 @@ namespace NeonNetwork
             RaceSidebar.Setup();
             SidePanel.Setup();
             //Loading.Show("Connecting...", null);
+            Online.Online.Setup();
 
             //yield return new WaitForSeconds(0.25f);
 
             Rooms.Setup();
-            Nametag.Setup();
             // ROOMS RELEASE
 
             //yield return null;

@@ -1,9 +1,10 @@
 # NeonNetwork
 ## Live online multiplayer and more natively built into Neon White!
+Powered partially by Universal's neonwhite.io! *(coming soon!)*
 
-### **THIS IS A TEMPORARY REPOSITORY**
-This repository will not contain any code, and will only contain [releases.](https://github.com/stxticOVFL/NeonNetwork/releases/latest)
-This repo will be up as long as NeonNetwork is in development.
+### **NEONNETWORK IS IN BETA!!**
+This repository now contans *both* code *and* [releases.](https://github.com/stxticOVFL/NeonNetwork/releases/latest)
+NeonNetwork and neonwhite.io, however, are still both in active development! The code is not perfect!
 
 ## TESTING TEAM
 This mod could not have been done without the testing team and everyone involved!

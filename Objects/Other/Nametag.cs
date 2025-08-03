@@ -35,7 +35,7 @@ namespace NeonNetwork.Objects.Other
 
         public void SetInfo(ulong steamID)
         {
-            transform.Find("Name").GetComponent<TextMeshPro>().text = Online.Online.GetName(steamID);
+            transform.Find("Name").GetComponent<TextMeshPro>().text = Online.Online.GetName(steamID, x => nameN.GetComponent<TextMeshPro>().text = x);
             transform.Find("PFP").GetComponent<MeshRenderer>().material.mainTexture = Online.Online.GetPFP(steamID);
         }
 

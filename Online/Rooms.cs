@@ -1,9 +1,5 @@
 ﻿using HarmonyLib;
 using I2.Loc;
-using JetBrains.Annotations;
-using MelonLoader;
-using MelonLoader.TinyJSON;
-using Microsoft.Win32;
 using NeonLite;
 using NeonLite.Modules;
 using NeonLite.Modules.Optimization;
@@ -19,16 +15,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Security.Cryptography;
 using System.Text;
 using TMPro;
 using UnityEngine;
 using UniverseLib.Utility;
-using static Beautify.Universal.Beautify;
 
 namespace NeonNetwork.Online
 {
@@ -505,6 +495,8 @@ namespace NeonNetwork.Online
             lobbyChatMSGCB = Callback<LobbyChatMsg_t>.Create(OnChatMsg);
             P2PreqCB = Callback<P2PSessionRequest_t>.Create(OnP2PReq);
             lobbyJoinReqCB = Callback<GameLobbyJoinRequested_t>.Create(OnLobbyJoinReq);
+
+            Nametag.Setup();
 
             game.OnLevelLoadComplete += OnStageStartRace;
             new GameObject("Ghosts", typeof(GhostsManager)).transform.parent = NeonNetwork.nnHolder;

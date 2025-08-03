@@ -159,6 +159,8 @@ namespace NeonNetwork.Objects.SidePanel.Contents
 
             public Rooms.User user;
 
+            TextMeshProUGUI nameText;
+
             RawImage nametag;
             RawImage visible;
             RawImage kick;
@@ -186,6 +188,8 @@ namespace NeonNetwork.Objects.SidePanel.Contents
                 {
                     SetTagVisibility(!user.tagVisible);
                 });
+
+                nameText = transform.Find("Name").GetComponent<TextMeshProUGUI>();
 
                 visible = transform.Find("Vis").GetComponent<RawImage>();
                 nametag = transform.Find("Tag").GetComponent<RawImage>();
@@ -343,7 +347,7 @@ namespace NeonNetwork.Objects.SidePanel.Contents
                 name = steamID.ToString();
 
                 GetComponentInChildren<RawImage>().texture = Online.Online.GetPFP(steamID);
-                transform.Find("Name").GetComponent<TextMeshProUGUI>().text = Online.Online.GetName(steamID);
+                nameText.text = Online.Online.GetName(steamID, x => nameText.text = x);
 
                 if (Rooms.selfUser == user)
                 {

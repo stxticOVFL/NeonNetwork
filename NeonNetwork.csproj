@@ -67,6 +67,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Mods\NeonLite.dll</HintPath>
     </Reference>
+    <Reference Include="SecretShop">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Mods\SecretShop.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
@@ -149,7 +152,6 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>r.resx</DependentUpon>
     </Compile>
-    <Compile Include="Settings.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\r.resx">
