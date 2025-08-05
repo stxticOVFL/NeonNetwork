@@ -195,6 +195,10 @@ namespace NeonNetwork
 
         static bool profiling = true;
 
+#if !DEBUG
+#pragma warning disable CS0162
+#endif
+
         [Conditional("ENABLE_PROFILER")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void EnableProfiling(bool enable) => profiling = enable;

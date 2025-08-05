@@ -96,6 +96,8 @@ namespace NeonNetwork
             Rooms.Setup();
             // ROOMS RELEASE
 
+            // TODO: beh. temporary
+            Online.Online.Invoke();
             //yield return null;
         }
     }

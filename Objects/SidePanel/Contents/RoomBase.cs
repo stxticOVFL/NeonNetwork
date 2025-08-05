@@ -239,36 +239,19 @@ namespace NeonNetwork.Objects.SidePanel.Contents
                         scaleT.Start(1, 0);
                 }
 
-                if (user != null)
+                visible.color = Color.white.Alpha(user.ghostVisible ? 1 : 0.3f);
+                nametag.color = Color.white.Alpha(user.tagVisible ? 1 : 0.3f);
+                if (user.raceReady && !Rooms.isRacing)
                 {
-                    visible.color = Color.white.Alpha(user.ghostVisible ? 1 : 0.3f);
-                    nametag.color = Color.white.Alpha(user.tagVisible ? 1 : 0.3f);
-                    if (user.raceReady && !Rooms.isRacing)
-                    {
-                        if (readyT.goal != 1)
-                            readyT.Start(null, 1);
-                    }
-                    else
-                    {
-                        if (readyT.goal != 0)
-                            readyT.Start(null, 0);
-                    }
-                    ready.color = ready.color.Alpha(readyT.result);
+                    if (readyT.goal != 1)
+                        readyT.Start(null, 1);
                 }
                 else
                 {
-                    if (Rooms.raceAccepted && !Rooms.isRacing)
-                    {
-                        if (readyT.goal != 1)
-                            readyT.Start(null, 1);
-                    }
-                    else
-                    {
-                        if (readyT.goal != 0)
-                            readyT.Start(null, 0);
-                    }
-                    ready.color = ready.color.Alpha(readyT.result);
+                    if (readyT.goal != 0)
+                        readyT.Start(null, 0);
                 }
+                ready.color = ready.color.Alpha(readyT.result);
 
                 if (user.ghost && user.ghost.offset != lastPing)
                 {
@@ -344,7 +327,8 @@ namespace NeonNetwork.Objects.SidePanel.Contents
             {
                 this.user = user;
                 var steamID = user.steamID.m_SteamID;
-                name = steamID.ToString();
+                name = steamID.ToString();  
+                nameText = transform.Find("Name").GetComponent<TextMeshProUGUI>();
 
                 GetComponentInChildren<RawImage>().texture = Online.Online.GetPFP(steamID);
                 nameText.text = Online.Online.GetName(steamID, x => nameText.text = x);

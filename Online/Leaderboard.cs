@@ -24,6 +24,7 @@ namespace NeonNetwork.Online
     {
         // this class is going to both serve as a "LeaderboardIntegration" substitute and also a patcher for it
 #pragma warning disable CS0414
+#pragma warning disable CS0649
         const bool priority = false;
         const bool active = true;
 
@@ -114,7 +115,6 @@ namespace NeonNetwork.Online
             public string name;
             public string image;
 
-
             public ScoreData ToScoreData()
             {
                 var ret = new ScoreData();
@@ -159,7 +159,12 @@ namespace NeonNetwork.Online
         static Leaderboards currentLB = null;
         static LevelData currentLevel = null;
         static int currentStartIndex = -1;
+        static int currentOldIndex = -1;
 
+        static bool justUploaded = false;
+
+        static bool lastCustomStage = false;
+        static bool lastLBState = false;
         static bool IsCustomStage(LevelData level, Leaderboards lb)
         {
             bool ret = false;
@@ -168,9 +173,34 @@ namespace NeonNetwork.Online
 
             // convert the lb
             if (lb)
-                lb.OnFriendsButtonPressed();
+            {
+                if (!lastCustomStage)
+                    lastLBState = lb.bg.sprite == lb.bgGlobal;
+
+                if (ret)
+                    lb.OnFriendsButtonPressed();
+                else if (lastCustomStage)
+                {
+                    if (lastLBState)
+                        lb.OnGlobalButtonPressed();
+                    else
+                        lb.OnFriendsButtonPressed();
+                }
+
+                lastCustomStage = ret;
+            }
+
             return ret;
         }
+        static void SetVariables(Leaderboards lb, LevelData level, ScoreInfo[] scores = null, int startIndex = -1)
+        {
+            currentLB = lb;
+            currentLevel = level;
+            currentScores = scores;
+            currentStartIndex = startIndex;
+            currentOldIndex = -1;
+        }
+
         static bool PreFilter(Leaderboards __instance, LevelData ___currentLevelData)
         {
             UpdateGUI(__instance, ___currentLevelData);
@@ -217,8 +247,7 @@ namespace NeonNetwork.Online
         {
             if (!IsCustomStage(level, lb))
             {
-                currentLB = null;
-                currentLevel = null;
+                SetVariables(null, null);
                 LeaderboardIntegrationSteam.UploadScore(level, lb, cb);
                 return;
             }
@@ -232,10 +261,7 @@ namespace NeonNetwork.Online
 
             NeonNetwork.Logger.DebugMsg($"UploadScore {cb}");
 
-            currentLB = lb;
-            currentLevel = level;
-            currentScores = null;
-            currentStartIndex = -1;
+            SetVariables(lb, level);
 
             SubmitRequest sub = new()
             {
@@ -267,6 +293,7 @@ namespace NeonNetwork.Online
                 {
                     currentScores = resp.scores;
                     currentStartIndex = currentScores[0].index;
+                    currentOldIndex = resp.old_index;
 
                     foreach (var score in currentScores)
                     {
@@ -276,12 +303,16 @@ namespace NeonNetwork.Online
                             currentLB.SetUserRanking(score.index);
 
                             score.ourScore = true;
-                            score.oldIndex = resp.old_index;
+
+                            if (score.index <= currentOldIndex)
+                                currentOldIndex = -1;
+                            score.oldIndex = currentOldIndex;
                             break;
                         }
                     }
                 }
 
+                justUploaded = true;
                 cb?.Invoke(true);
             };
         }
@@ -290,20 +321,23 @@ namespace NeonNetwork.Online
         {
             if (!IsCustomStage(level, lb))
             {
-                currentLB = null;
-                currentLevel = null;
-
+                SetVariables(null, null);
                 LeaderboardIntegrationSteam.SetupLeaderboardForLevel(level, lb, cb);
                 return;
             }
 
             NeonNetwork.Logger.DebugMsg($"SetupLeaderboardForLevel {cb}");
 
-            currentLB = lb;
-            currentLevel = level;
-            currentScores = null;
-            currentStartIndex = -1;
+            if (justUploaded)
+            {
+                // use that data!
+                cb?.Invoke(true);
+                justUploaded = false;
+                return;
+            }
 
+            SetVariables(lb, level);
+ 
             FetchRequest sub = new()
             {
                 level_id = currentLevel.levelID,
@@ -334,6 +368,12 @@ namespace NeonNetwork.Online
                 {
                     NeonNetwork.Logger.DebugMsg(resp.scores);
 
+                    if (currentStartIndex == resp.scores[0].index)
+                    {
+                        cb?.Invoke(true);
+                        return; // if upload already populated
+                    }
+
                     currentScores = resp.scores;
                     currentStartIndex = currentScores[0].index;
 
@@ -345,6 +385,7 @@ namespace NeonNetwork.Online
                             currentLB.SetUserRanking(score.index);
 
                             score.ourScore = true;
+                            score.oldIndex = currentOldIndex;
                             break;
                         }
                     }
@@ -359,8 +400,7 @@ namespace NeonNetwork.Online
         {
             if (!IsCustomStage(currentLevel, currentLB))
             {
-                currentLB = null;
-                currentLevel = null;
+                SetVariables(null, null);
                 LeaderboardIntegrationSteam.DownloadEntries(start, end, friend, globalNeonRankings);
                 return;
             }
@@ -417,6 +457,7 @@ namespace NeonNetwork.Online
                             currentLB.SetFriendUserRanking(score.index);
                             currentLB.SetUserRanking(score.index);
                             score.ourScore = true;
+                            score.oldIndex = currentOldIndex;
                             break;
                         }
                     }
@@ -429,15 +470,29 @@ namespace NeonNetwork.Online
             };
         }
 
-
-        static void SetupLeaderboardForLevelRush(Leaderboards lb, LevelRushType rush, bool heaven, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb) =>
+        static void SetupLeaderboardForLevelRush(Leaderboards lb, LevelRushType rush, bool heaven, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb)
+        {
+            IsCustomStage(null, lb);
+            SetVariables(null, null);
             LeaderboardIntegrationSteam.SetupLeaderboardForLevelRush(lb, rush, heaven, cb);
-        static void UploadScore_GlobalNeonRank(Leaderboards lb, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb) =>
+        }
+        static void UploadScore_GlobalNeonRank(Leaderboards lb, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb)
+        {
+            IsCustomStage(null, lb);
+            SetVariables(null, null);
             LeaderboardIntegrationSteam.UploadScore_GlobalNeonRank(lb, cb);
-        static void UploadScore_LevelRush(LevelRush.LevelRushType rush, bool heaven, Leaderboards lb, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb) =>
+        }
+        static void UploadScore_LevelRush(LevelRush.LevelRushType rush, bool heaven, Leaderboards lb, LeaderboardIntegrationSteam.LeaderboardLoadedCallback cb)
+        {
+            IsCustomStage(null, lb);
+            SetVariables(null, null);
             LeaderboardIntegrationSteam.UploadScore_LevelRush(rush, heaven, lb, cb);
-        static ScoreData GetScoreDataAtGlobalRank(int globalRank, bool friendsOnly, bool globalNeonRanking) =>
-            LeaderboardIntegrationSteam.GetScoreDataAtGlobalRank(globalRank, friendsOnly, globalNeonRanking);
+        }
+        static ScoreData GetScoreDataAtGlobalRank(int globalRank, bool friendsOnly, bool globalNeonRanking)
+        {
+            SetVariables(null, null);
+            return LeaderboardIntegrationSteam.GetScoreDataAtGlobalRank(globalRank, friendsOnly, globalNeonRanking);
+        }
 #else
 #endif
 

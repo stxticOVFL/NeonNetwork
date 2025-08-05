@@ -84,7 +84,7 @@ namespace NeonNetwork.Objects.Popups
             var raceDuration = float.Parse(time.input.text) * 60;
             var raceLeniency = leniency.input.text == "" ? 0 : int.Parse(leniency.input.text);
             var raceCountdown = countdown.input.text == "" ? 10 : int.Parse(countdown.input.text);
-            Rooms.StartRace(stageButton.level, raceDuration, raceLeniency, raceCountdown);
+            Rooms.CallRace(stageButton.level, raceDuration, raceLeniency, raceCountdown);
             Leave();
         }
 

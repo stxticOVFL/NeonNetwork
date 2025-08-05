@@ -46,6 +46,8 @@ namespace NeonNetwork.Online
 #endif
         }
 
+        public static void Invoke() => LoggedIn?.Invoke();
+
         public static UnityWebRequest Get(string route, bool auth = true)
         {
             var req = UnityWebRequest.Get(URL + route);
