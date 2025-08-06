@@ -22,435 +22,439 @@ using UniverseLib.Utility;
 
 namespace NeonNetwork.Online
 {
-    internal class RoomsModule : IModule
-    {
-#pragma warning disable CS0414
-        const bool priority = true;
-        const bool active = true;
-
-        static void Activate(bool _)
-        {
-            Patching.PerformHarmonyPatches(typeof(Rooms));
-        }
-
-        static bool stallOnce = false;
-
-        static bool OnLevelLoad(LevelData level)
-        {
-            if (!level || level.type == LevelData.LevelType.Hub)
-                return true;
-
-            if (stallOnce)
-            {
-                stallOnce = false;
-                Rooms.SetupRace();
-                return true;
-            }
-
-            Rooms.lastFrameT = DateTime.MinValue;
-            Rooms.fakeIndex = 0;
-
-            stallOnce = Rooms.connected;
-            return !stallOnce;
-        }
-    }
-
-    class GhostsManager : MonoBehaviour, IModule
-    {
-        public static GhostsManager i;
-
-#pragma warning disable CS0414
-        const bool priority = true;
-        const bool active = true;
-
-        static bool disableAwake;
-
-        static void Activate(bool _)
-        {
-            Patching.AddPatch(typeof(GhostPlayback), "Awake", CheckAwake, Patching.PatchTarget.Prefix);
-        }
-
-        static bool CheckAwake() => !disableAwake;
-
-        internal class PlayerGhostPlayback : MonoBehaviour // entirely custom version of GhostPlayback
-        {
-            static readonly int _MainColor = Shader.PropertyToID("_MainColor");
-            static readonly int _GlowColor = Shader.PropertyToID("_GlowColor");
-            static readonly int _DitherMax = Shader.PropertyToID("_DitherMax");
-
-            class TriggerData
-            {
-                public int trigger;
-                public float time;
-            }
-
-            static GameObject prefab;
-
-            GameObject ghostObject;
-            public GhostActor ghostActor;
-            Vector3 lastPos;
-
-            public Rooms.User user;
-
-            const int MAX_FRAMES = 60;
-            readonly GhostFrame[] _frames = new GhostFrame[MAX_FRAMES];
-            readonly TriggerData[] _triggers = new TriggerData[MAX_FRAMES];
-            int frameCount = 0;
-            int triggerCount = 0;
-            IEnumerable<GhostFrame> Frames { get { return _frames.Take(frameCount); } }
-            IEnumerable<TriggerData> Triggers { get { return _triggers.Take(triggerCount); } }
-
-            public DateTime lastPing;
-            public float offset;
-
-            Nametag nametag;
-
-            void Start()
-            {
-                if (!prefab)
-                    prefab = UnityEngine.Resources.Load("PlayerGhost") as GameObject;
-
-                ghostObject = Instantiate(prefab, transform);
-                ghostActor = ghostObject.GetComponent<GhostActor>();
-
-                // make a ghostplayback to make it happy
-                disableAwake = true;
-                var playback = gameObject.AddComponent<GhostPlayback>();
-                playback.actor = GhostPlayback.Actor.White;
-                ghostActor.SetGhostPlayback(playback);
-                playback.enabled = false;
-                disableAwake = false;
-
-                var meshrender = ghostActor.GetComponentInChildren<SkinnedMeshRenderer>();
-                meshrender.material.SetFloat("_DitherMax", 1.1f);
-                SetColor();
-
-                ghostObject.SetActive(true);
-                nametag = Nametag.Spawn(ghostActor.transform, user.steamID.m_SteamID);
-                SetOpacity(0, true);
-            }
-
-            public void Clear()
-            {
-                frameCount = 0;
-                triggerCount = 0;
-            }
-
-            void Update()
-            {
-                Parse();
-
-                if (!user.ghostVisible)
-                    SetOpacity(0, true);
-                else if (RM.mechController)
-                {
-                    const float MAX_DIST = 8f;
-                    var dist = Vector3.Distance(RM.drifter.m_cameraHolder.position, nametag.transform.position);
-                    if (dist < MAX_DIST)
-                        SetOpacity(1 - ((MAX_DIST - dist) / MAX_DIST), user.tagVisible);
-                    else
-                        SetOpacity(1, user.tagVisible);
-                }
-                if (!user.tagVisible)
-                    nametag.SetOpacity(0);
-            }
-
-            static FieldInfo actorLastPos = NeonLite.Helpers.Field(typeof(GhostActor), "m_lastPos");
-
-            float SecondsTillLand()
-            {
-                foreach (var f in Frames)
-                {
-                    if (f.grounded)
-                        return f.time;
-                }
-                return float.MaxValue;
-            }
-
-            void Parse()
-            {
-                enabled = true;
-
-                // first, do the offset
-                Frames.Do(x => x.time -= Time.unscaledDeltaTime);
-                Triggers.Do(x => x.time -= Time.unscaledDeltaTime);
-                // then, find the index of negative if any
-                GhostFrame lastFrame = null;
-                int index = 0;
-                bool performed = false;
-                for (int i = 0; i < frameCount; ++i)
-                {
-                    var frame = _frames[i];
-
-                    if (frame.time > 0)
-                    {
-                        if (lastFrame == null)
-                            break; // we don't have a frame yet
-
-                        if (frame.index <= lastFrame.index)
-                            break; // this new frame is from a new batch
-
-                        // we have a frame!
-                        performed = true;
-
-                        // do fuckass math to lerp it (essentially lerp in reverse)
-                        var interp = GhostFrame.Interpolate(frame, lastFrame, frame.time / (frame.time - lastFrame.time));
-                        ghostActor.transform.position = lastPos = interp.pos;
-                        ghostActor.transform.rotation = Quaternion.Euler(0, interp.angle, 0);
-                        ghostActor.SetFrame(interp);
-
-                        break;
-                    }
-                    lastFrame = frame;
-                    index = i;
-                }
-
-                NeonNetwork.Logger.DebugMsg($"{index} {user.steamID}");
-
-                if (!performed)
-                {
-                    if (lastFrame == null)
-                        SetOpacity(0, true);
-                    else
-                    {
-                        actorLastPos.SetValue(ghostActor, lastPos);
-                        ghostActor.transform.position = lastFrame.pos;
-                        ghostActor.transform.rotation = Quaternion.Euler(0, lastFrame.angle, 0);
-                        ghostActor.SetFrame(lastFrame);
-                    }
-                }
-
-                if (index != 0)
-                {
-                    // shift the array
-                    frameCount -= index;
-                    Array.Copy(_frames, index, _frames, 0, frameCount);
-                }
-
-                index = 0;
-
-                for (int i = 0; i < triggerCount; ++i)
-                {
-                    var trigger = _triggers[i];
-                    if (trigger.time > 0)
-                        break;
-
-                    switch (trigger.trigger)
-                    {
-                        case 1:
-                            ghostActor.Jump();
-                            break;
-                        case 2:
-                            {
-                                var d = Math.Max(0, SecondsTillLand() - .25f);
-                                if (d > 0.5f)
-                                    ghostActor.Fall(d);
-                                break;
-                            }
-                        case 3:
-                            ghostActor.Land();
-                            break;
-                    }
-                    index++;
-                }
-
-                if (index != 0)
-                {
-                    // shift the array
-                    triggerCount -= index;
-                    Array.Copy(_triggers, index, _triggers, 0, triggerCount);
-                }
-            }
-
-            public void Add(GhostFrame frame)
-            {
-                if (frameCount + 1 >= MAX_FRAMES)
-                    return;
-
-                if (!enabled)
-                {
-                    Clear();
-                    enabled = true;
-                }
-
-                frame.time += offset;
-                _frames[frameCount++] = frame;
-                // do trigger stuff
-
-                if (frame.triggerEvent > 0 && frame.triggerEvent != 2000)
-                {
-                    TriggerData td = new()
-                    {
-                        trigger = frame.triggerEvent,
-                        time = frame.time
-                    };
-
-                    if (td.trigger == 3)
-                        td.time -= .4f;
-                    else if (td.trigger == 1)
-                        td.time -= .1f;
-
-                    _triggers[triggerCount++] = td;
-
-                    var iter = Triggers.OrderBy(x => x.time).ToArray();
-                    Array.Copy(iter, _triggers, triggerCount);
-                }
-            }
-
-            public void DoOffset(DateTime final)
-            {
-                if (isActiveAndEnabled)
-                {
-                    Frames.Do(x => x.time -= offset);
-                    Triggers.Do(x => x.time -= offset);
-                }
-                offset = (float)(final - lastPing).TotalSeconds;
-                if (isActiveAndEnabled)
-                {
-                    Frames.Do(x => x.time += offset);
-                    Triggers.Do(x => x.time += offset);
-                }
-            }
-
-            public void SetColor()
-            {
-                var meshrender = ghostActor.GetComponentInChildren<SkinnedMeshRenderer>();
-
-                meshrender.materials[0].SetColor(_MainColor, SteamMatchmaking.GetLobbyMemberData(Rooms.roomSID, user.steamID, "color").ToColor());
-                meshrender.materials[0].SetColor(_GlowColor, SteamMatchmaking.GetLobbyMemberData(Rooms.roomSID, user.steamID, "colorsub").ToColor());
-                meshrender.materials[1].SetColor(_MainColor, SteamMatchmaking.GetLobbyMemberData(Rooms.roomSID, user.steamID, "incolor").ToColor());
-                meshrender.materials[1].SetColor(_GlowColor, SteamMatchmaking.GetLobbyMemberData(Rooms.roomSID, user.steamID, "incolorsub").ToColor());
-            }
-
-            public void SetOpacity(float opacity, bool nt)
-            {
-                var ghostactor = ghostActor.GetComponentInChildren<SkinnedMeshRenderer>();
-
-                ghostactor.materials[0].SetFloat(_DitherMax, 1.1f * opacity);
-                ghostactor.materials[1].SetFloat(_DitherMax, 1.1f * opacity);
-
-                if (nt)
-                    nametag.SetOpacity(opacity);
-            }
-        }
-
-        void Awake()
-        {
-            i = this;
-            gameObject.SetActive(false);
-        }
-
-        static readonly byte[] tickBufferA = new byte[1 + Rooms.GhostFrameHandler.SIZEOF];
-        static readonly BinaryReader tickReader = new(new MemoryStream(tickBufferA, false));
-
-        public void Update()
-        {
-            var level = Rooms.game.GetCurrentLevel();
-            var users = Rooms.inRoom.Values.Where(user => user.level == level && user.accepted).Select(user => user.steamID);
-
-            while (SteamNetworking.IsP2PPacketAvailable(out var size))
-            {
-                SteamNetworking.ReadP2PPacket(tickBufferA, size, out var read, out var from);
-
-                tickReader.BaseStream.Position = 0;
-                var type = tickReader.ReadByte();
-                var user = Rooms.inRoom[from.m_SteamID];
-
-                // read the first byte *anyway*
-                if (type >= 0x10)
-                    NeonNetwork.Logger.DebugMsg($"recieve {type} {from}");
-
-                switch (type)
-                {
-                    case 0x80: // ping *request* from user 1
-                        {
-                            byte[] frameBytes = [0x81];
-
-                            user.ghost.lastPing = DateTime.UtcNow;
-                            SteamNetworking.SendP2PPacket(from, frameBytes, 1, EP2PSend.k_EP2PSendReliable);
-                            continue;
-                        }
-                    case 0x81: // ping from user 2
-                        {
-                            byte[] frameBytes = [0x82];
-
-                            //user.ghost.lastPing = DateTime.UtcNow;
-                            SteamNetworking.SendP2PPacket(from, frameBytes, 1, EP2PSend.k_EP2PSendReliable);
-                            continue;
-                        }
-                    case 0x82: // ping response from user 1
-                        {
-                            //byte[] frameBytes = [0x83];
-                            user.ghost.DoOffset(DateTime.UtcNow);
-                            //SteamNetworking.SendP2PPacket(from, frameBytes, 1, EP2PSend.k_EP2PSendReliable);
-                            continue;
-                        }
-                    case 0x83: // ping response from user 2
-                        {
-                            user.ghost.DoOffset(DateTime.UtcNow);
-                            continue;
-                        }
-                }
-
-                if (!users.Contains(from))
-                    continue; // don't handle
-
-                var gp = user.ghost;
-
-                user.responded = type != 2;
-                if (type == 2)
-                {
-                    Hide(user); // hide me! i'm restarting!
-                    continue;
-                }
-
-                var frame = Rooms.GhostFrameHandler.FromReader(tickReader);
-                if (!user.responded)
-                {
-                    NeonNetwork.Logger.DebugMsg($"Handle new {from} {type}");
-                    user.attempted = Rooms.WriteCurrentFrame(from);
-                }
-
-                user.ghost.Add(frame);
-            }
-        }
-
-        static readonly List<PlayerGhostPlayback> playbacks = [];
-
-        public static void Add(Rooms.User user)
-        {
-            i.gameObject.SetActive(true);
-
-            var g = new GameObject(user.steamID.ToString(), typeof(PlayerGhostPlayback)).GetComponent<PlayerGhostPlayback>();
-            g.transform.parent = i.transform;
-            g.user = user;
-            user.ghost = g;
-            playbacks.Add(g);
-        }
-
-        public static void Hide(Rooms.User user)
-        {
-            user.ghost.enabled = false;
-            user.ghost.SetOpacity(0, true);
-        }
-
-        public static void Remove(Rooms.User user)
-        {
-            playbacks.Remove(user.ghost);
-            Destroy(user.ghost.gameObject);
-        }
-
-        public static void Clear()
-        {
-            foreach (var g in playbacks)
-                Destroy(g.gameObject);
-            playbacks.Clear();
-            i.gameObject.SetActive(false);
-        }
-    }
-
     internal static class Rooms
     {
+        internal class RoomsModule : IModule
+        {
+#pragma warning disable CS0414
+            const bool priority = true;
+            const bool active = true;
+
+            static void Activate(bool _) => Patch(false);
+
+            static bool stallOnce = false;
+
+            static bool OnLevelLoad(LevelData level)
+            {
+                if (!level || level.type == LevelData.LevelType.Hub)
+                    return true;
+
+                if (stallOnce)
+                {
+                    stallOnce = false;
+                    Rooms.SetupRace();
+                    return true;
+                }
+
+                Rooms.lastFrameT = DateTime.MinValue;
+                Rooms.fakeIndex = 0;
+
+                stallOnce = Rooms.connected;
+                return !stallOnce;
+            }
+        }
+
+        internal class GhostsManager : MonoBehaviour, IModule
+        {
+            public static GhostsManager i;
+
+#pragma warning disable CS0414
+            const bool priority = true;
+            const bool active = true;
+
+            static bool disableAwake;
+
+            static void Activate(bool _)
+            {
+                Patching.AddPatch(typeof(GhostPlayback), "Awake", CheckAwake, Patching.PatchTarget.Prefix);
+            }
+
+            static bool CheckAwake() => !disableAwake;
+
+            internal class PlayerGhostPlayback : MonoBehaviour // entirely custom version of GhostPlayback
+            {
+                static readonly int _MainColor = Shader.PropertyToID("_MainColor");
+                static readonly int _GlowColor = Shader.PropertyToID("_GlowColor");
+                static readonly int _DitherMax = Shader.PropertyToID("_DitherMax");
+
+                class TriggerData
+                {
+                    public int trigger;
+                    public float time;
+                }
+
+                static GameObject prefab;
+
+                GameObject ghostObject;
+                public GhostActor ghostActor;
+                Vector3 lastPos;
+
+                public User user;
+
+                const int MAX_FRAMES = 60;
+                readonly GhostFrame[] _frames = new GhostFrame[MAX_FRAMES];
+                readonly TriggerData[] _triggers = new TriggerData[MAX_FRAMES];
+                int frameCount = 0;
+                int triggerCount = 0;
+                IEnumerable<GhostFrame> Frames { get { return _frames.Take(frameCount); } }
+                IEnumerable<TriggerData> Triggers { get { return _triggers.Take(triggerCount); } }
+
+                public DateTime lastPing;
+                public float offset;
+
+                Nametag nametag;
+
+                float fade = 1;
+
+                void Start()
+                {
+                    if (!prefab)
+                        prefab = UnityEngine.Resources.Load("PlayerGhost") as GameObject;
+
+                    ghostObject = Instantiate(prefab, transform);
+                    ghostActor = ghostObject.GetComponent<GhostActor>();
+
+                    // make a ghostplayback to make it happy
+                    disableAwake = true;
+                    var playback = gameObject.AddComponent<GhostPlayback>();
+                    playback.actor = GhostPlayback.Actor.White;
+                    ghostActor.SetGhostPlayback(playback);
+                    playback.enabled = false;
+                    disableAwake = false;
+
+                    var meshrender = ghostActor.GetComponentInChildren<SkinnedMeshRenderer>();
+                    meshrender.material.SetFloat("_DitherMax", 1.1f);
+                    SetColor();
+
+                    ghostObject.SetActive(true);
+                    nametag = Nametag.Spawn(ghostActor.transform, user.steamID.m_SteamID);
+                    SetOpacity(0, true);
+                }
+
+                public void Clear()
+                {
+                    frameCount = 0;
+                    triggerCount = 0;
+                }
+
+                void Update()
+                {
+                    Parse();
+
+                    if (!user.ghostVisible)
+                        SetOpacity(0, true);
+                    else if (RM.mechController)
+                    {
+                        const float MAX_DIST = 8f;
+                        var dist = Vector3.Distance(RM.drifter.m_cameraHolder.position, nametag.transform.position);
+                        dist = Math.Max(0, dist - 1f);
+                        if (dist < MAX_DIST)
+                            SetOpacity(fade * (1 - ((MAX_DIST - dist) / MAX_DIST)), user.tagVisible);
+                        else
+                            SetOpacity(fade, user.tagVisible);
+                    }
+                    if (!user.tagVisible)
+                        nametag.SetOpacity(0);
+                }
+
+                static FieldInfo actorLastPos = NeonLite.Helpers.Field(typeof(GhostActor), "m_lastPos");
+
+                float SecondsTillLand()
+                {
+                    foreach (var f in Frames)
+                    {
+                        if (f.grounded)
+                            return f.time;
+                    }
+                    return float.MaxValue;
+                }
+
+                void Parse()
+                {
+                    enabled = true;
+
+                    // first, do the offset
+                    Frames.Do(x => x.time -= Time.unscaledDeltaTime);
+                    Triggers.Do(x => x.time -= Time.unscaledDeltaTime);
+                    // then, find the index of negative if any
+                    GhostFrame lastFrame = null;
+                    int index = 0;
+                    bool performed = false;
+                    for (int i = 0; i < frameCount; ++i)
+                    {
+                        var frame = _frames[i];
+
+                        if (frame.time > 0)
+                        {
+                            if (lastFrame == null)
+                                break; // we don't have a frame yet
+
+                            if (frame.index <= lastFrame.index)
+                                break; // this new frame is from a new batch
+
+                            // we have a frame!
+                            performed = true;
+                            fade = 1;
+
+                            // do fuckass math to lerp it (essentially lerp in reverse)
+                            var interp = GhostFrame.Interpolate(frame, lastFrame, frame.time / (frame.time - lastFrame.time));
+                            ghostActor.transform.position = lastPos = interp.pos;
+                            ghostActor.transform.rotation = Quaternion.Euler(0, interp.angle, 0);
+                            ghostActor.SetFrame(interp);
+
+                            break;
+                        }
+                        lastFrame = frame;
+                        index = i;
+                    }
+
+                    NeonNetwork.Logger.DebugMsg($"{index} {user.steamID}");
+
+                    if (!performed)
+                    {
+                        if (lastFrame == null)
+                            SetOpacity(0, true);
+                        else
+                        {
+                            fade = Math.Max(0.25f, fade - Time.unscaledDeltaTime * 0.5f);
+                            actorLastPos.SetValue(ghostActor, lastPos);
+                            ghostActor.transform.position = lastFrame.pos;
+                            ghostActor.transform.rotation = Quaternion.Euler(0, lastFrame.angle, 0);
+                            ghostActor.SetFrame(lastFrame);
+                        }
+                    }
+
+                    if (index != 0)
+                    {
+                        // shift the array
+                        frameCount -= index;
+                        Array.Copy(_frames, index, _frames, 0, frameCount);
+                    }
+
+                    index = 0;
+
+                    for (int i = 0; i < triggerCount; ++i)
+                    {
+                        var trigger = _triggers[i];
+                        if (trigger.time > 0)
+                            break;
+
+                        switch (trigger.trigger)
+                        {
+                            case 1:
+                                ghostActor.Jump();
+                                break;
+                            case 2:
+                                {
+                                    var d = Math.Max(0, SecondsTillLand() - .25f);
+                                    if (d > 0.5f)
+                                        ghostActor.Fall(d);
+                                    break;
+                                }
+                            case 3:
+                                ghostActor.Land();
+                                break;
+                        }
+                        index++;
+                    }
+
+                    if (index != 0)
+                    {
+                        // shift the array
+                        triggerCount -= index;
+                        Array.Copy(_triggers, index, _triggers, 0, triggerCount);
+                    }
+                }
+
+                public void Add(GhostFrame frame)
+                {
+                    if (frameCount + 1 >= MAX_FRAMES)
+                        return;
+
+                    if (!enabled)
+                    {
+                        Clear();
+                        enabled = true;
+                    }
+
+                    frame.time += offset;
+                    _frames[frameCount++] = frame;
+                    // do trigger stuff
+
+                    if (frame.triggerEvent > 0 && frame.triggerEvent != 2000)
+                    {
+                        TriggerData td = new()
+                        {
+                            trigger = frame.triggerEvent,
+                            time = frame.time
+                        };
+
+                        if (td.trigger == 3)
+                            td.time -= .4f;
+                        else if (td.trigger == 1)
+                            td.time -= .1f;
+
+                        _triggers[triggerCount++] = td;
+
+                        var iter = Triggers.OrderBy(x => x.time).ToArray();
+                        Array.Copy(iter, _triggers, triggerCount);
+                    }
+                }
+
+                public void DoOffset(DateTime final)
+                {
+                    if (isActiveAndEnabled)
+                    {
+                        Frames.Do(x => x.time -= offset);
+                        Triggers.Do(x => x.time -= offset);
+                    }
+                    offset = (float)(final - lastPing).TotalSeconds;
+                    if (isActiveAndEnabled)
+                    {
+                        Frames.Do(x => x.time += offset);
+                        Triggers.Do(x => x.time += offset);
+                    }
+                }
+
+                public void SetColor()
+                {
+                    var meshrender = ghostActor.GetComponentInChildren<SkinnedMeshRenderer>();
+
+                    meshrender.materials[0].SetColor(_MainColor, SteamMatchmaking.GetLobbyMemberData(roomSID, user.steamID, "color").ToColor());
+                    meshrender.materials[0].SetColor(_GlowColor, SteamMatchmaking.GetLobbyMemberData(roomSID, user.steamID, "colorsub").ToColor());
+                    meshrender.materials[1].SetColor(_MainColor, SteamMatchmaking.GetLobbyMemberData(roomSID, user.steamID, "incolor").ToColor());
+                    meshrender.materials[1].SetColor(_GlowColor, SteamMatchmaking.GetLobbyMemberData(roomSID, user.steamID, "incolorsub").ToColor());
+                }
+
+                public void SetOpacity(float opacity, bool nt)
+                {
+                    var ghostactor = ghostActor.GetComponentInChildren<SkinnedMeshRenderer>();
+
+                    ghostactor.materials[0].SetFloat(_DitherMax, 1.1f * opacity);
+                    ghostactor.materials[1].SetFloat(_DitherMax, 1.1f * opacity);
+
+                    if (nt)
+                        nametag.SetOpacity(opacity);
+                }
+            }
+
+            void Awake()
+            {
+                i = this;
+                gameObject.SetActive(false);
+            }
+
+            static readonly byte[] tickBufferA = new byte[1 + GhostFrameHandler.SIZEOF];
+            static readonly BinaryReader tickReader = new(new MemoryStream(tickBufferA, false));
+
+            public void Update()
+            {
+                var level = game.GetCurrentLevel();
+                var users = inRoom.Values.Where(user => user.level == level && user.accepted).Select(user => user.steamID);
+
+                while (SteamNetworking.IsP2PPacketAvailable(out var size))
+                {
+                    SteamNetworking.ReadP2PPacket(tickBufferA, size, out var read, out var from);
+
+                    tickReader.BaseStream.Position = 0;
+                    var type = tickReader.ReadByte();
+                    var user = inRoom[from.m_SteamID];
+
+                    // read the first byte *anyway*
+                    if (type >= 0x10)
+                        NeonNetwork.Logger.DebugMsg($"recieve {type} {from}");
+
+                    switch (type)
+                    {
+                        case 0x80: // ping *request* from user 1
+                            {
+                                byte[] frameBytes = [0x81];
+
+                                user.ghost.lastPing = DateTime.UtcNow;
+                                SteamNetworking.SendP2PPacket(from, frameBytes, 1, EP2PSend.k_EP2PSendReliable);
+                                continue;
+                            }
+                        case 0x81: // ping from user 2
+                            {
+                                byte[] frameBytes = [0x82];
+
+                                //user.ghost.lastPing = DateTime.UtcNow;
+                                SteamNetworking.SendP2PPacket(from, frameBytes, 1, EP2PSend.k_EP2PSendReliable);
+                                continue;
+                            }
+                        case 0x82: // ping response from user 1
+                            {
+                                //byte[] frameBytes = [0x83];
+                                user.ghost.DoOffset(DateTime.UtcNow);
+                                //SteamNetworking.SendP2PPacket(from, frameBytes, 1, EP2PSend.k_EP2PSendReliable);
+                                continue;
+                            }
+                        case 0x83: // ping response from user 2
+                            {
+                                user.ghost.DoOffset(DateTime.UtcNow);
+                                continue;
+                            }
+                    }
+
+                    if (!users.Contains(from))
+                        continue; // don't handle
+
+                    var gp = user.ghost;
+
+                    user.responded = type != 2;
+                    if (type == 2)
+                    {
+                        //Hide(user); // hide me! i'm restarting!
+                        continue;
+                    }
+
+                    var frame = GhostFrameHandler.FromReader(tickReader);
+                    if (!user.responded)
+                    {
+                        NeonNetwork.Logger.DebugMsg($"Handle new {from} {type}");
+                        user.attempted = WriteCurrentFrame(from);
+                    }
+
+                    user.ghost.Add(frame);
+                }
+            }
+
+            static readonly List<PlayerGhostPlayback> playbacks = [];
+
+            public static void Add(User user)
+            {
+                i.gameObject.SetActive(true);
+
+                var g = new GameObject(user.steamID.ToString(), typeof(PlayerGhostPlayback)).GetComponent<PlayerGhostPlayback>();
+                g.transform.parent = i.transform;
+                g.user = user;
+                user.ghost = g;
+                playbacks.Add(g);
+            }
+
+            public static void Hide(User user)
+            {
+                user.ghost.enabled = false;
+                user.ghost.SetOpacity(0, true);
+            }
+
+            public static void Remove(User user)
+            {
+                playbacks.Remove(user.ghost);
+                Destroy(user.ghost.gameObject);
+            }
+
+            public static void Clear()
+            {
+                foreach (var g in playbacks)
+                    Destroy(g.gameObject);
+                playbacks.Clear();
+                i.gameObject.SetActive(false);
+            }
+        }
+
+
+
         public static Game game;
         public static bool setup = false;
 
@@ -519,14 +523,16 @@ namespace NeonNetwork.Online
                 }
             }
             if (!cmdline)
-                Online.LoggedIn += PromptAutojoin;
+            {
+                if (Settings.autoJoinF.Value)
+                    JoinAutoroom(0);
+                else if (Settings.autoJoin.Value)
+                    Online.LoggedIn += PromptAutojoin;
+            }
         }
 
         public static void PromptAutojoin()
         {
-            if (!Settings.autoJoin.Value)
-                return;
-
             TextButtons.Show("NeonNetwork/ROOMS_WARN_AUTOROOM_AUTO",
                 (popup, _) =>
                 {
@@ -617,6 +623,7 @@ namespace NeonNetwork.Online
             {
                 chatMsgWriter.Flush();
                 chatMsgWriter.Write((byte)LobbyChatOp.Leave);
+
                 SendLobbyMsg();
             }
             Popup.Finish();
@@ -628,6 +635,7 @@ namespace NeonNetwork.Online
             autoroom = false;
             inRoom.Clear();
             SetRP();
+            Patch();
         }
 
         public static void SetColor()
@@ -769,6 +777,7 @@ namespace NeonNetwork.Online
         public static void StopRace()
         {
             Unready(true);
+            Patch();
 
             if (owner != Online.steamID)
                 return;
@@ -794,6 +803,8 @@ namespace NeonNetwork.Online
             raceAccepted = false;
             raceWinnered = true;
             raceHappening = false;
+            selfUser.raceReady = false;
+
             if (!fromStop)
             {
                 chatMsgWriter.Write((byte)LobbyChatOp.RaceUnready);
@@ -887,7 +898,7 @@ namespace NeonNetwork.Online
             Popup.Finish();
             if (lobby.m_eResult != EResult.k_EResultOK)
             {
-                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_ERROR", 10, (text, _) => text.color = Status.Colors.error);
+                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_ERROR_CREATE", 10, (text, _) => text.color = Status.Colors.error, sound: "UI_ALERT");
                 return;
             }
 
@@ -907,13 +918,13 @@ namespace NeonNetwork.Online
             GenerateID();
 
             if (autoroom)
-                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_JOIN_SELF");
+                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_JOIN_SELF", sound: "ITEM_COLLECT");
             else
             {
                 GUIUtility.systemCopyBuffer = EncodeID(id);
                 if (isPrivate)
                     GUIUtility.systemCopyBuffer += EncodeID(secret);
-                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_CREATED", 10, pairs: [new("{0}", "NeonNetwork/ROOMS_NOTIF_IDCOPIED")]);
+                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_CREATED", 10, sound: "ITEM_COLLECT", pairs: [new("{0}", "NeonNetwork/ROOMS_NOTIF_IDCOPIED")]);
             }
             if (autoroom)
                 SidePanel.LoadContent<RoomVisit>("RoomVisit", "NeonNetwork/ROOMS_AUTOROOM");
@@ -921,6 +932,7 @@ namespace NeonNetwork.Online
                 SidePanel.LoadContent<RoomHost>("RoomHost", roomName);
 
             PreLevelSetup(game.GetCurrentLevel());
+            Patch();
         }
 
         static void GenerateID()
@@ -960,7 +972,7 @@ namespace NeonNetwork.Online
             {
                 Popup.Finish();
                 if (list.m_nLobbiesMatching == 0)
-                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_NOROOM", 10);
+                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_NOROOM", 10, sound: "UI_ALERT");
                 else
                 {
                     var sid = SteamMatchmaking.GetLobbyByIndex(0);
@@ -1019,7 +1031,7 @@ namespace NeonNetwork.Online
                 else
                 {
                     Popup.Finish();
-                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_ERROR_JOIN", 10, (text, _) => text.color = Status.Colors.error);
+                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_ERROR_JOIN", 10, (text, _) => text.color = Status.Colors.error, sound: "UI_ALERT");
                 }
                 return;
             }
@@ -1057,7 +1069,7 @@ namespace NeonNetwork.Online
         static void OnChatUpdate(LobbyChatUpdate_t update)
         {
             NeonNetwork.Logger.DebugMsg($"[STEAM] OnChatUpdate {update.m_ulSteamIDUserChanged} {update.m_ulSteamIDMakingChange} {update.m_rgfChatMemberStateChange}");
-            
+
             var member = (CSteamID)update.m_ulSteamIDUserChanged;
 
             switch ((EChatMemberStateChange)update.m_rgfChatMemberStateChange)
@@ -1084,7 +1096,7 @@ namespace NeonNetwork.Online
                     {
                         // room is being disbanded
                         LeaveRoom(true);
-                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_DISBAND", 10);
+                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_DISBAND", 10, sound: "HINT_RESET");
                     }
                     else if (inRoom.ContainsKey(member.m_SteamID))
                     {
@@ -1106,6 +1118,7 @@ namespace NeonNetwork.Online
                         // Status.ShowStatus($"{GetName(member.m_SteamID)} has left the room.");
                         SteamNetworking.CloseP2PSessionWithUser(member);
                         SetRP();
+                        Patch();
                     }
                     break;
             }
@@ -1140,6 +1153,7 @@ namespace NeonNetwork.Online
             inRoom.Add(steamID.m_SteamID, u);
             GhostsManager.Add(u);
             RoomBase.AddUser(u);
+            Patch();
         }
 
         static void StartRace(bool halfSetup = false)
@@ -1151,12 +1165,14 @@ namespace NeonNetwork.Online
             });
             raceHappening = true;
             isRacing = true;
+            Patch();
             if (!halfSetup)
             {
                 SuperRestart.ForceStagingNextRestart();
                 game.CancelLevelSetup();
                 game.PlayLevel(raceLevel, true);
             }
+            Status.PlaySound("UI_INSIGHT_UNLOCK");
 
             SetRP();
 
@@ -1176,9 +1192,9 @@ namespace NeonNetwork.Online
             if (winner == null)
                 return;
             if (winner.racePB > racePB)
-                Status.ShowStatus("NeonNetwork/RACE_NOTIF_WINNER_SELF", 10);
+                Status.ShowStatus("NeonNetwork/RACE_NOTIF_WINNER_SELF", 10, sound: "UI_RELATIONSHIP_XP_COMPLETE");
             else
-                Status.ShowStatus("NeonNetwork/RACE_NOTIF_WINNER_OTHER", 10, pairs: [new("{0}", Online.GetName(winner.steamID.m_SteamID), false)]);
+                Status.ShowStatus("NeonNetwork/RACE_NOTIF_WINNER_OTHER", 10, sound: "UI_RELATIONSHIP_HIDE", pairs: [new("{0}", Online.GetName(winner.steamID.m_SteamID), false)]);
             inRoom.Values.Do(x => x.racing = false);
             SetRP();
 
@@ -1294,7 +1310,7 @@ namespace NeonNetwork.Online
                     if (newUID != Online.steamID.m_SteamID)
                     {
                         MemberJoin((CSteamID)newUID);
-                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_JOIN_OTHER", pairs: [new("{0}", Online.GetName(newUID), false)]);
+                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_JOIN_OTHER", sound: "HINT_ACTIVATE", pairs: [new("{0}", Online.GetName(newUID), false)]);
                         SetRP();
                     }
                     else if (!connected)
@@ -1309,7 +1325,7 @@ namespace NeonNetwork.Online
                         SidePanel.LoadContent<RoomVisit>("RoomVisit", autoroom ? "NeonNetwork/ROOMS_AUTOROOM" : roomName);
 
                         var racing = SteamMatchmaking.GetLobbyData(roomSID, "racing") == "y";
-                        Status.ShowStatus(racing ? "NeonNetwork/RACE_NOTIF_MIDJOIN" : "NeonNetwork/ROOMS_NOTIF_JOIN_SELF");
+                        Status.ShowStatus(racing ? "NeonNetwork/RACE_NOTIF_MIDJOIN" : "NeonNetwork/ROOMS_NOTIF_JOIN_SELF", sound: "ITEM_COLLECT");
                         if (autoroom)
                             SidePanel.attention = true;
 
@@ -1323,6 +1339,7 @@ namespace NeonNetwork.Online
                         }
 
                         PreLevelSetup(game.GetCurrentLevel());
+                        Patch();
                     }
 
                     break;
@@ -1338,18 +1355,18 @@ namespace NeonNetwork.Online
                             if (!connected)
                             {
                                 Popup.Finish();
-                                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_WANTPRIVATE", 10, (text, _) => text.color = Status.Colors.error);
+                                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_WANTPRIVATE", 10, (text, _) => text.color = Status.Colors.error, sound: "UI_ALERT");
                             }
                             else
                             {
                                 LeaveRoom(true);
-                                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_KICKED_SELF", 10, (text, _) => text.color = Status.Colors.error);
+                                Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_KICKED_SELF", 10, (text, _) => text.color = Status.Colors.error, sound: "UI_ALERT");
                             }
                         }
                     }
                     // inRoom.Remove(UID);
                     // SteamNetworking.CloseP2PSessionWithUser((CSteamID)UID);
-                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_KICKED_OTHER", pairs: [new("{0}", Online.GetName(UID), false)]);
+                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_KICKED_OTHER", pairs: [new("{0}", Online.GetName(UID), false)], sound: "HINT_RESET");
                     break;
                 case LobbyChatOp.AskSecret: // secret requestd
                     if (!fromOwner || connected)
@@ -1358,7 +1375,7 @@ namespace NeonNetwork.Online
                     {
                         SteamMatchmaking.LeaveLobby(roomSID);
                         Popup.Finish();
-                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_WANTPRIVATE", 10, (text, _) => text.color = Status.Colors.error);
+                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_WANTPRIVATE", 10, (text, _) => text.color = Status.Colors.error, sound: "UI_ALERT");
                     }
                     else
                     {
@@ -1388,7 +1405,8 @@ namespace NeonNetwork.Online
                     }
                     break;
                 case LobbyChatOp.Leave: // natural leave **ALL THIS DOES IS NOTIFY THE USER** THIS DOES NOT PERFORM A LEAVE
-                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_LEFT_OTHER", pairs: [new("{0}", Online.GetName(sentID.m_SteamID), false)]);
+                    if (!fromSelf)
+                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_LEFT_OTHER", sound: "HINT_RESET", pairs: [new("{0}", Online.GetName(sentID.m_SteamID), false)]);
                     break;
                 #endregion
                 #region Races
@@ -1400,7 +1418,7 @@ namespace NeonNetwork.Online
                         raceLevel = game.GetGameData().GetLevelData(chatMsgReader.ReadString());
                         if (!raceLevel)
                         {
-                            Status.ShowStatus("NeonNetwork/RACE_NOTIF_NULLEVEL", 10, (text, _) => text.color = Status.Colors.error);
+                            Status.ShowStatus("NeonNetwork/RACE_NOTIF_NULLEVEL", 10, (text, _) => text.color = Status.Colors.error, sound: "UI_RELATIONSHIP_HIDE");
                             chatMsgWriter.Write((byte)LobbyChatOp.RaceError); // we can't :( custom level we don't have, prolly
                             chatMsgWriter.Write("NeonNetwork/RACE_ERROR_NULLEVEL");
                             SendLobbyMsg();
@@ -1418,7 +1436,7 @@ namespace NeonNetwork.Online
                             localized = raceLevel.levelDisplayName;
 
                         string min = string.Format("{0:0.##}", raceTime / 60);
-                        Status.ShowStatus("NeonNetwork/RACE_NOTIF_STARTRACE", 10, pairs: [new("{0}", localized, false), new("{1}", min, false)]);
+                        Status.ShowStatus("NeonNetwork/RACE_NOTIF_STARTRACE", 10, sound: "UI_RELATIONSHIP_SHOW", pairs: [new("{0}", localized, false), new("{1}", min, false)]);
 
                         break;
                     }
@@ -1514,12 +1532,13 @@ namespace NeonNetwork.Online
                             return;
 
                         Unready(true);
+                        Patch();
                         if (raceLevel && game.GetCurrentLevel() == raceLevel)
                         {
                             game.CancelLevelSetup();
                             game.PlayLevel(raceLevel, true, true);
                         }
-                        Status.ShowStatus("NeonNetwork/RACE_NOTIF_STOPRACE", 10);
+                        Status.ShowStatus("NeonNetwork/RACE_NOTIF_STOPRACE", 10, sound: "UI_RELATIONSHIP_HIDE");
 
                         break;
                     }
@@ -1616,6 +1635,54 @@ namespace NeonNetwork.Online
         #endregion RoomID
 
         // !!!!!!!!!     PATCHES      !!!!!!!!!
+
+        public static void Patch(bool run = true)
+        {
+            Patching.TogglePatch(connected, typeof(Game), "LevelSetupRoutine", PreLevelSetup, Patching.PatchTarget.Prefix);
+
+            // racing
+            Patching.TogglePatch(isRacing, typeof(PlayerUI), "UpdateTimerText", PostUpdateTimerText, Patching.PatchTarget.Postfix);
+            Patching.TogglePatch(connected, typeof(LevelInfo), "SetLevel", LevelInfoRace, Patching.PatchTarget.Postfix);
+
+            Patching.TogglePatch(isRacing, typeof(MainMenu), "OnPressButtonNextLevel", PopupOnLeave, Patching.PatchTarget.Prefix);
+            Patching.TogglePatch(isRacing, typeof(MainMenu), "OnPressButtonJobArchive", PopupOnLeave, Patching.PatchTarget.Prefix);
+            Patching.TogglePatch(isRacing, typeof(MainMenu), "OnPressButtonJobArchiveFromLocation", PopupOnLeave, Patching.PatchTarget.Prefix);
+            Patching.TogglePatch(isRacing, typeof(MainMenu), "OnPressButtonSidequestShop", PopupOnLeave, Patching.PatchTarget.Prefix);
+            Patching.TogglePatch(isRacing, typeof(MainMenu), "OnPressButtonReturnToHub", PopupOnLeaveT, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(isRacing, typeof(MainMenu), "OnPressButtonQuitLevel", PopupOnLeaveT, Patching.PatchTarget.Transpiler);
+
+            Patching.TogglePatch(isRacing, typeof(MenuScreenStaging), "OnSetVisible", SetupRaceStagingHook, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(isRacing, typeof(MenuScreenStaging), "Update", StagingUpdate, Patching.PatchTarget.Transpiler);
+            var m = NeonLite.Helpers.Method(typeof(Game), "WinRoutine").MoveNext();
+            Patching.TogglePatch(isRacing, m, RaceWinPatch, Patching.PatchTarget.Transpiler);
+            m = NeonLite.Helpers.Method(typeof(MenuScreenResults), "LevelCompleteRoutine").MoveNext();
+            Patching.TogglePatch(isRacing || raceJustStopped, m, RaceLevelComplete, Patching.PatchTarget.Transpiler);
+
+            // ghost recording
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordDiscardAbility", UploadFrame, Patching.PatchTarget.Postfix);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordFireAbility", UploadFrame, Patching.PatchTarget.Postfix);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordJumpAbility", UploadFrame, Patching.PatchTarget.Postfix);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordLand", UploadFrame, Patching.PatchTarget.Postfix);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordBulletHit", UploadFrame, Patching.PatchTarget.Postfix);
+
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "LateUpdate", SkipDontRecord, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "OnDestroy", SkipDontRecord, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordDiscardAbility", SkipDontRecord, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordFireAbility", SkipDontRecord, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordJumpAbility", SkipDontRecord, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordBulletHit", SkipDontRecord, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "RecordLand", SkipDontRecord, Patching.PatchTarget.Transpiler);
+
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "LateUpdate", UploadInject, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "SaveLevelData", UploadInject, Patching.PatchTarget.Transpiler);
+            Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "SaveLevelData", SkipLRBranch, Patching.PatchTarget.Transpiler);
+
+            if (run)
+                Patching.RunPatches();
+        }
+
+
+
         #region Ghosts
 
         public static class GhostFrameHandler
@@ -1625,7 +1692,7 @@ namespace NeonNetwork.Online
                 public GhostFrame Clone() => (GhostFrame)MemberwiseClone();
             }
 
-            public const uint SIZEOF = sizeof(float) * 6 + sizeof(int) * 2 + sizeof(bool) * 3; 
+            public const uint SIZEOF = sizeof(float) * 6 + sizeof(int) * 2 + sizeof(bool) * 3;
 
             static readonly CloneableGhostFrame buffer = new();
 
@@ -1676,15 +1743,9 @@ namespace NeonNetwork.Online
         public static int fakeIndex = 0;
         public static DateTime lastFrameT = DateTime.MinValue;
 
-        [HarmonyPostfix]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordDiscardAbility")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordFireAbility")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordJumpAbility")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordLand")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordBulletHit")]
         static void UploadFrame(GhostFrame[] ___m_recordingFrames, bool ___m_dontRecord, ref int ___m_recordingIndex)
         {
-            if (!connected || ___m_recordingFrames == null)
+            if (___m_recordingFrames == null)
                 return;
             lastFrame = ___m_recordingFrames[usedFrame];
             if (lastFrame == null)
@@ -1741,14 +1802,6 @@ namespace NeonNetwork.Online
             Helpers.EndProfiling("UploadFrame");
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(GhostRecorder), "LateUpdate")]
-        [HarmonyPatch(typeof(GhostRecorder), "OnDestroy")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordDiscardAbility")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordFireAbility")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordJumpAbility")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordBulletHit")]
-        [HarmonyPatch(typeof(GhostRecorder), "RecordLand")]
         static IEnumerable<CodeInstruction> SkipDontRecord(IEnumerable<CodeInstruction> instructions)
         {
             bool hit = false;
@@ -1800,9 +1853,6 @@ namespace NeonNetwork.Online
                 yield return code;
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(GhostRecorder), "LateUpdate")]
-        [HarmonyPatch(typeof(GhostRecorder), "SaveLevelData")]
         static IEnumerable<CodeInstruction> UploadInject(IEnumerable<CodeInstruction> instructions)
         {
             var method = NeonLite.Helpers.Method(typeof(GhostRecorder), "CreateBaseFrame");
@@ -1840,8 +1890,6 @@ namespace NeonNetwork.Online
                 record.SaveCompressed();
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(GhostRecorder), "SaveLevelData")]
         static IEnumerable<CodeInstruction> SkipLRBranch(IEnumerable<CodeInstruction> instructions)
         {
             bool hit = false;
@@ -1920,8 +1968,6 @@ namespace NeonNetwork.Online
             lb.SetLevel(level, fromStore, true, skipNewScoreInitalDelay, !GameDataManager.levelStats[game.GetCurrentLevel().levelID].IsNewBest());
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(MenuScreenStaging), "OnSetVisible")]
         static IEnumerable<CodeInstruction> SetupRaceStagingHook(IEnumerable<CodeInstruction> instructions)
         {
             int hits = 0;
@@ -1940,8 +1986,6 @@ namespace NeonNetwork.Online
             }
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(MenuScreenStaging), "Update")]
         static IEnumerable<CodeInstruction> StagingUpdate(IEnumerable<CodeInstruction> instructions)
         {
             bool hit = false;
@@ -1961,8 +2005,7 @@ namespace NeonNetwork.Online
                     hit = true;
                 else if (code.Calls(isLevelRush))
                 {
-                    // kinda lazy
-                    yield return CodeInstruction.LoadField(typeof(Rooms), "isRacing");
+                    yield return new(OpCodes.Ldc_I4_1);
                     yield return new(OpCodes.Or);
                 }
             }
@@ -2022,6 +2065,7 @@ namespace NeonNetwork.Online
                         if (listuser)
                             listuser.SetLocation();
                     }
+                    Patch();
                 }
                 else if (!leniencyChecked)
                 {
@@ -2042,13 +2086,6 @@ namespace NeonNetwork.Online
                 AudioController.Play("MUSIC_JINGLE_LEVEL_COMPLETE_NEW_BEST", MainMenu.Instance().transform);
             else
                 AudioController.Play("MUSIC_JINGLE_LEVEL_COMPLETE", MainMenu.Instance().transform);
-        }
-
-        static bool RaceIntrimHandler()
-        {
-            if (isRacing || raceJustStopped)
-                return true;
-            return LevelRush.IsLevelRush();
         }
 
         static void LoadRaceLevel()
@@ -2076,25 +2113,20 @@ namespace NeonNetwork.Online
             game.PlayLevel(raceLevel, true, true);
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(MenuScreenResults), "LevelCompleteRoutine", MethodType.Enumerator)]
         static IEnumerable<CodeInstruction> RaceLevelComplete(IEnumerable<CodeInstruction> instructions)
         {
             int hitLR = 0;
             var isLevelRush = NeonLite.Helpers.Method(typeof(LevelRush), "IsLevelRush");
-            var intrim = NeonLite.Helpers.Method(typeof(Rooms), "RaceIntrimHandler");
 
             foreach (var code in instructions)
             {
                 if (code.Calls(isLevelRush) && ++hitLR == 2)
-                    yield return new CodeInstruction(OpCodes.Call, intrim).MoveLabelsFrom(code);
+                    yield return new CodeInstruction(OpCodes.Ldc_I4_1).MoveLabelsFrom(code);
                 else
                     yield return code;
             }
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(Game), "WinRoutine", MethodType.Enumerator)]
         static IEnumerable<CodeInstruction> RaceWinPatch(IEnumerable<CodeInstruction> instructions)
         {
             int hit = 0;
@@ -2119,9 +2151,7 @@ namespace NeonNetwork.Online
             }
         }
 
-        [HarmonyPostfix]
-        [HarmonyPatch(typeof(LevelInfo), "SetLevel")]
-        static void LevelInfoRace(ref LevelInfo __instance, ref LevelData level, bool fromStore, bool isNewScore)
+        static void LevelInfoRace(LevelInfo __instance, LevelData level, bool fromStore, bool isNewScore)
         {
             if ((!isRacing && !raceJustStopped) || racePB == long.MaxValue || level.levelID != raceLevel.levelID)
                 return;
@@ -2145,17 +2175,8 @@ namespace NeonNetwork.Online
         static Color raceGradient;
         static bool raceFinalWarning;
 
-        [HarmonyPostfix]
-        [HarmonyPatch(typeof(PlayerUI), "UpdateTimerText")]
         static void PostUpdateTimerText(ref TextMeshPro ___timerText)
         {
-            if (!isRacing)
-            {
-                if (raceTimer != null)
-                    GameObject.Destroy(raceTimer);
-                raceFinalWarning = false;
-                return;
-            }
             // graciously yoinked from neonlite
             if (raceTimer == null)
             {
@@ -2188,24 +2209,13 @@ namespace NeonNetwork.Online
             raceTimer.text = NeonLite.Helpers.FormatTime(timeMS);
         }
 
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(MainMenu), "OnPressButtonNextLevel")]
-        [HarmonyPatch(typeof(MainMenu), "OnPressButtonJobArchive")]
-        [HarmonyPatch(typeof(MainMenu), "OnPressButtonJobArchiveFromLocation")]
-        [HarmonyPatch(typeof(MainMenu), "OnPressButtonSidequestShop")]
         private static bool PopupOnLeave(MainMenu __instance, MethodBase __originalMethod)
         {
-            if (!isRacing)
-                return true;
-
             Warnings(() => __originalMethod.Invoke(__instance, []));
 
             return false;
         }
 
-        [HarmonyTranspiler]
-        [HarmonyPatch(typeof(MainMenu), "OnPressButtonReturnToHub")]
-        [HarmonyPatch(typeof(MainMenu), "OnPressButtonQuitLevel")]
         static IEnumerable<CodeInstruction> PopupOnLeaveT(IEnumerable<CodeInstruction> instructions)
         {
             var setPopup = NeonLite.Helpers.Method(typeof(MenuScreenPopup), "SetPopup");
@@ -2222,11 +2232,6 @@ namespace NeonNetwork.Online
 
         static void PopupOnLeaveTH(this MenuScreenPopup popup, string label, Action yes, Action no, Action cancel, MenuScreenPopup.Style style)
         {
-            if (!isRacing)
-            {
-                popup.SetPopup(label, yes, no, cancel, style);
-                return;
-            }
             Warnings(yes);
         }
 
@@ -2241,7 +2246,7 @@ namespace NeonNetwork.Online
                         {
                             popup.Leave();
                             StopRace();
-                            Status.ShowStatus("NeonNetwork/RACE_NOTIF_STOPRACE", 10);
+                            Status.ShowStatus("NeonNetwork/RACE_NOTIF_STOPRACE", 10, sound: "UI_RELATIONSHIP_HIDE");
                             callback?.Invoke();
                         });
                         popup.AddComponent<Objects.Popups.Components.Button>("Button", "Interface/INTERFACE_LABEL_010_NO").onClickEvent.AddListener(popup.Leave);
@@ -2269,13 +2274,11 @@ namespace NeonNetwork.Online
         #endregion
 
         #region OtherPatches
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(Game), "LevelSetupRoutine")]
         static void PreLevelSetup(LevelData newLevel)
         {
             if (RaceSidebar.shown && newLevel != raceLevel)
                 RaceSidebar.Clear();
-            if (!connected || !newLevel)
+            if (!newLevel)
                 return;
 
             selfUser.level = newLevel;

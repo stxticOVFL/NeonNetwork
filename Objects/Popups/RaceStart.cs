@@ -16,6 +16,12 @@ namespace NeonNetwork.Objects.Popups
         public Components.Button startButton;
         public Components.StageButton stageButton;
 
+        static float savedTime = -1;
+        static int savedLeniency = -1;
+        static int savedCountdown = -1;
+
+        bool ignore = false;
+
         override protected void SetupComponent<T>(T component)
         {
             var button = component as Components.Button;
@@ -51,6 +57,18 @@ namespace NeonNetwork.Objects.Popups
             }
         }
 
+        void Start()
+        {
+            if (ignore)
+                return;
+            if (savedTime != -1)
+                time.input.text = savedTime.ToString();
+            if (savedLeniency != -1)
+                leniency.input.text = savedLeniency.ToString();
+            if (savedCountdown != -1)
+                countdown.input.text = savedCountdown.ToString();
+        }
+
         new void Update()
         {
             base.Update();
@@ -70,11 +88,13 @@ namespace NeonNetwork.Objects.Popups
             {
                 ShowPopup<RaceStart>("RaceStart", (popup) =>
                 {
+                    var r = popup as RaceStart;
                     var tuple = ((string, string, string))selector.passback;
-                    (popup as RaceStart).time.input.text = tuple.Item1;
-                    (popup as RaceStart).leniency.input.text = tuple.Item2;
-                    (popup as RaceStart).countdown.input.text = tuple.Item3;
-                    (popup as RaceStart).stageButton.SetStage(level);
+                    r.time.input.text = tuple.Item1;
+                    r.leniency.input.text = tuple.Item2;
+                    r.countdown.input.text = tuple.Item3;
+                    r.ignore = true;
+                    r.stageButton.SetStage(level);
                 });
             });
         }
@@ -85,6 +105,11 @@ namespace NeonNetwork.Objects.Popups
             var raceLeniency = leniency.input.text == "" ? 0 : int.Parse(leniency.input.text);
             var raceCountdown = countdown.input.text == "" ? 10 : int.Parse(countdown.input.text);
             Rooms.CallRace(stageButton.level, raceDuration, raceLeniency, raceCountdown);
+
+            savedTime = raceDuration / 60;
+            savedLeniency = raceLeniency;
+            savedCountdown = raceCountdown;
+
             Leave();
         }
 

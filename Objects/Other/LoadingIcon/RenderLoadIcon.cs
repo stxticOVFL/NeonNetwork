@@ -14,7 +14,6 @@ namespace NeonNetwork.Objects
 
         internal static void Setup()
         {
-            NeonNetwork.Logger.Msg("RenderLoadIcon Setup");
             var prefab = NeonNetwork.bundle.LoadAsset<GameObject>("Assets/Prefabs/RenderLoadIcon.prefab");
             i = Utils.InstantiateUI(prefab, "RenderLoadIcon", NeonNetwork.nnHolder).AddComponent<RenderLoadIcon>();
         }

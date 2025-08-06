@@ -14,7 +14,6 @@ namespace NeonNetwork.Objects
 
         internal static void Setup()
         {
-            NeonNetwork.Logger.Msg("StatusHandler Setup");
             statusPrefab = NeonNetwork.bundle.LoadAsset<GameObject>("Assets/Prefabs/Status.prefab");
 
             GameObject obj = new("Status Holder", typeof(RectTransform));
@@ -25,7 +24,6 @@ namespace NeonNetwork.Objects
 
         void Awake()
         {
-            NeonNetwork.Logger.Msg("Status Handler Start");
             Utils.InstantiateUI(statusPrefab, "Status", transform).AddComponent<Status>();
         }
 

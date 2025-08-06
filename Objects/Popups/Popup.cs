@@ -192,7 +192,8 @@ namespace NeonNetwork.Objects.Popups
             popupTSY.Set(popupBack.sizeDelta.y);
 
             shown = false;
-            typeof(MenuScreen).GetField("_sortingOrder", HarmonyLib.AccessTools.all).SetValue(this, 10000);
+
+            NeonLite.Helpers.Field(typeof(MenuScreen), "_sortingOrder").SetValue(this, 10000);
         }
 
         protected void Update()

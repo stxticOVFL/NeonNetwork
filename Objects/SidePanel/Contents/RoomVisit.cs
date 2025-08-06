@@ -28,7 +28,7 @@ namespace NeonNetwork.Objects.SidePanel.Contents
                                 popup.AddComponent<Popups.Components.Button>("Button", "Interface/INTERFACE_LABEL_008_YES").onClickEvent.AddListener(() =>
                                 {
                                     Rooms.LeaveRoom();
-                                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_LEFT_SELF");
+                                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_LEFT_SELF", sound: "HINT_RESET");
                                 });
                                 popup.AddComponent<Popups.Components.Button>("Button", "Interface/INTERFACE_LABEL_010_NO").onClickEvent.AddListener(popup.Leave);
                             }

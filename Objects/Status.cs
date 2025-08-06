@@ -1,11 +1,14 @@
-﻿using System;
+﻿using ClockStone;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using static DynamicBoneColliderBase;
 
 namespace NeonNetwork.Objects
 {
@@ -96,12 +99,12 @@ namespace NeonNetwork.Objects
 
         void OnExit() => instance.displaying = false;
 
-        public static void ShowStatus(string text, float time = 5, Action<TextMeshProUGUI, bool> onShow = null, List<AxKReplacementPair> pairs = null)
+        public static void ShowStatus(string text, float time = 5, Action<TextMeshProUGUI, bool> onShow = null, List<AxKReplacementPair> pairs = null, string sound = null)
         {
             if (!instance)
                 return;
 
-            instance.ShowStatus(text, time, onShow, pairs);
+            instance.ShowStatus(text, time, onShow, pairs, sound);
         }
         public static void Stop()
         {
@@ -114,13 +117,36 @@ namespace NeonNetwork.Objects
             instance.animator.SetTrigger("Exit");
         }
 
-        public void ShowStatus(string text, float time, Action<TextMeshProUGUI, bool> onShow, List<AxKReplacementPair> pairs = null, bool _ = false)
+        static readonly FieldInfo audioItemCat = NeonLite.Helpers.Field(typeof(AudioItem), "_category");
+
+        public static void PlaySound(string sound)
+        {
+            NeonNetwork.Logger.DebugMsg(sound);
+            var audioItem = new AudioItem(AudioController.GetAudioItem(sound));
+            audioItemCat.SetValue(audioItem, AudioController.GetCategory("UI"));
+            //var listener = AudioController.GetCurrentAudioListener();1
+            var listener = MainMenu.Instance();
+
+            SingletonMonoBehaviour<AudioController>.Instance.PlayAudioItem(audioItem, 1, listener.transform.position, listener.transform);
+        }
+
+
+        public void ShowStatus(string text, float time, Action<TextMeshProUGUI, bool> onShow, List<AxKReplacementPair> pairs = null, string sound = null, bool _ = false)
         {
             if (!instance)
                 return;
 
             NeonNetwork.Logger.DebugMsg($"ShowStatus {text}");
 
+            if (sound != null)
+            {
+                void PS(TextMeshProUGUI _, bool _2) => PlaySound(sound);
+
+                if (onShow != null)
+                    onShow += PS;
+                else
+                    onShow = PS;
+            }
 
             queuedText = text;
             queuedPairs = pairs;

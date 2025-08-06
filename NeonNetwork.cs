@@ -10,6 +10,7 @@ using NeonNetwork.Online;
 using NeonNetwork.Objects.SidePanel;
 using NeonNetwork.Objects.Other;
 using NeonNetwork.Resources;
+using System.Runtime.CompilerServices;
 
 namespace NeonNetwork
 {
@@ -19,7 +20,6 @@ namespace NeonNetwork
         internal static NeonNetwork instance;
         internal static Transform nnMMHolder;
         internal static Transform nnHolder;
-        internal static bool initialized = false;
         internal static bool connected = false;
         internal static bool logged = false;
 
@@ -39,6 +39,8 @@ namespace NeonNetwork
             NeonLite.Modules.Anticheat.Register(MelonAssembly);
 #endif
             NeonLite.NeonLite.LoadModules(MelonAssembly);
+            NeonLite.Patching.AddPatch(typeof(MainMenu), "SetState", Init, NeonLite.Patching.PatchTarget.Prefix);
+
             Settings.Register();
         }
 
@@ -66,9 +68,16 @@ namespace NeonNetwork
 
         public static MelonLogger.Instance Logger => instance.LoggerInstance;
 
+        public static void Init(MainMenu.State newState)
+        {
+            if (newState != MainMenu.State.Title)
+                return;
+            instance.Initialize();
+
+            NeonLite.Patching.RemovePatch(typeof(MainMenu), "SetState", Init);
+        }
         public void Initialize()
         {
-            initialized = true;
             //yield return new WaitForSeconds(0.5f);
             Logger.Msg("Starting NeonNetwork..");
 
@@ -117,12 +126,14 @@ namespace NeonNetwork
         public static MelonPreferences_Entry<bool> hiddenLB;
 
         public static MelonPreferences_Entry<bool> autoJoin;
+        public static MelonPreferences_Entry<bool> autoJoinF;
 
         public static void Register()
         {
             NeonLite.Settings.AddHolder(h);
 
-            autoJoin = NeonLite.Settings.Add(h, "Rooms", "autoJoin", "Auto-join public auto-room", null, true);
+            autoJoin = NeonLite.Settings.Add(h, "Rooms", "autoJoin", "Public auto-room popup", null, true);
+            autoJoinF = NeonLite.Settings.Add(h, "Rooms", "autoJoinForce", "Actually auto-join the auto-room", null, false, true);
 
             debug = NeonLite.Settings.Add(h, "Misc", "debug", "Debug Mode", null, false, true);
             hasSetup = NeonLite.Settings.Add(h, "Misc", "hasSetup", "Completed Setup", null, false, true);

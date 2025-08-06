@@ -31,7 +31,6 @@ namespace NeonNetwork.Objects.Other
 
         public static void Setup()
         {
-            NeonNetwork.Logger.Msg("RaceSidebar Setup");
             var obj = NeonNetwork.bundle.LoadAsset<GameObject>("Assets/Prefabs/RaceSidebar.prefab");
             obj = Utils.InstantiateUI(obj, "RaceSidebar", NeonNetwork.nnMMHolder);
             obj.transform.GetChild(0).GetChild(0).GetChild(0).GetOrAddComponent<RaceSidebar>();

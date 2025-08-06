@@ -17,12 +17,6 @@ using UnityEngine;
 
 namespace NeonNetwork
 {
-    public class Pair<T1, T2>(T1 first, T2 second)
-    {
-        public T1 First { get; set; } = first;
-        public T2 Second { get; set; } = second;
-    }
-
     public static class Extensions
     {
         public static Vector3 ScreenToCanvasPosition(this Canvas canvas, Vector3 screenPosition)

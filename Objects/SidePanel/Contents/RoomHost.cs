@@ -27,7 +27,7 @@ namespace NeonNetwork.Objects.SidePanel.Contents
                                 popup.AddComponent<Popups.Components.Button>("Button", "Interface/INTERFACE_LABEL_008_YES").onClickEvent.AddListener(() =>
                                 {
                                     Rooms.LeaveRoom();
-                                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_DISBAND", 10);
+                                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_DISBAND", 10, sound: "HINT_RESET");
                                 });
                                 popup.AddComponent<Popups.Components.Button>("Button", "Interface/INTERFACE_LABEL_010_NO").onClickEvent.AddListener(popup.Leave);
                             }
@@ -54,7 +54,7 @@ namespace NeonNetwork.Objects.SidePanel.Contents
                                             Rooms.game.CancelLevelSetup();
                                             Rooms.game.PlayLevel(Rooms.raceLevel, true, true);
                                         }
-                                        Status.ShowStatus("NeonNetwork/RACE_NOTIF_STOPRACE", 10);
+                                        Status.ShowStatus("NeonNetwork/RACE_NOTIF_STOPRACE", 10, sound: "UI_RELATIONSHIP_HIDE");
                                     });
                                     popup.AddComponent<Popups.Components.Button>("Button", "Interface/INTERFACE_LABEL_010_NO").onClickEvent.AddListener(popup.Leave);
                                 }

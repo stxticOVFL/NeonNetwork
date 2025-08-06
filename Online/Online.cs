@@ -1,6 +1,4 @@
-﻿using Harmony;
-using HarmonyLib;
-using MelonLoader.TinyJSON;
+﻿using MelonLoader.TinyJSON;
 using NeonLite;
 using NeonLite.Modules;
 using NeonNetwork.Objects;

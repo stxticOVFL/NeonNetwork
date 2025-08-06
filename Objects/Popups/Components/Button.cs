@@ -25,7 +25,7 @@ namespace NeonNetwork.Objects.Popups.Components
             localizer = Localization.Setup(label);
             graphic.SetAsFirstSibling();
             // bleh
-            typeof(MenuButtonHolder).GetMethod("Awake", HarmonyLib.AccessTools.all).Invoke(this, null);
+            NeonLite.Helpers.Method(typeof(MenuButtonHolder), "Awake").Invoke(this, null);
         }
     }
 }

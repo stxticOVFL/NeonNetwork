@@ -35,7 +35,6 @@ namespace NeonNetwork.Objects.SidePanel
 
         public static void Setup()
         {
-            NeonNetwork.Logger.Msg("SidePanel Setup");
             var obj = NeonNetwork.bundle.LoadAsset<GameObject>("Assets/Prefabs/SidePanel.prefab");
             Utils.InstantiateUI(obj, "SidePanel", NeonNetwork.nnMMHolder).AddComponent<SidePanel>();
         }
