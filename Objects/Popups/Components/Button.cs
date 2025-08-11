@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace NeonNetwork.Objects.Popups.Components
 {
-    public class Button : MenuButtonHolder
+    internal class Button : MenuButtonHolder
     {
         public TextMeshProUGUI label;
         public AxKLocalizedText localizer;

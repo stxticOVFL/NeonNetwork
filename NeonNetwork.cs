@@ -14,7 +14,7 @@ using System.Runtime.CompilerServices;
 
 namespace NeonNetwork
 {
-    public class NeonNetwork : MelonMod
+    internal class NeonNetwork : MelonMod
     {
         internal static AssetBundle bundle;
         internal static NeonNetwork instance;
@@ -111,7 +111,7 @@ namespace NeonNetwork
         }
     }
 
-    public static class Settings
+    internal static class Settings
     {
         public const string h = "NeonNetwork";
         public static MelonPreferences_Entry<bool> debug;

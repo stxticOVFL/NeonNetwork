@@ -22,7 +22,7 @@ using UniverseLib.Utility;
 
 namespace NeonNetwork.Online
 {
-    internal static class Rooms
+    public static class Rooms
     {
         internal class RoomsModule : IModule
         {
@@ -458,8 +458,6 @@ namespace NeonNetwork.Online
         public static Game game;
         public static bool setup = false;
 
-        public static User selfUser;
-
         public static bool isPrivate = true;
         public static bool isRacing = false;
         public static bool autoroom = false;
@@ -846,36 +844,36 @@ namespace NeonNetwork.Online
 
         static Callback<P2PSessionRequest_t> P2PreqCB;
 
-        public static readonly Dictionary<CSteamID, float> invited = [];
+        internal static readonly Dictionary<CSteamID, float> invited = [];
 
         public static CSteamID roomSID;
-        static string roomName;
-        public static ushort id;
-        public static ushort secret;
+        public static string roomName;
+        internal static ushort id;
+        internal static ushort secret;
         static CSteamID owner;
-        internal static bool connected = false;
+        public static bool connected = false;
 
         public static LevelData raceLevel;
         public static double raceTime = -1;
-        static int raceLeniency;
+        public static int raceLeniency;
         public static bool raceAccepted;
-        static float raceCountdown;
-        static bool raceSent;
-        static long racePB = long.MaxValue;
-        static long raceLastFinish = long.MaxValue;
+        public static float raceCountdown;
+        public static bool raceSent;
+        public static long racePB = long.MaxValue;
+        public static long raceLastFinish = long.MaxValue;
         public static bool raceWinnered = true;
-        static bool raceHappening = false;
+        public static bool raceHappening = false;
 
         public class User
         {
-            public CSteamID steamID;
+            internal CSteamID steamID;
             public LevelData level;
 
-            public bool attempted;
-            public bool responded;
-            public bool accepted;
+            internal bool attempted;
+            internal bool responded;
+            internal bool accepted;
 
-            public GhostsManager.PlayerGhostPlayback ghost;
+            internal GhostsManager.PlayerGhostPlayback ghost;
             public bool ghostVisible = true;
             public bool tagVisible = true;
             public bool syncedG = true;
@@ -887,6 +885,7 @@ namespace NeonNetwork.Online
             public bool racing;
         }
 
+        public static User selfUser;
         public static readonly Dictionary<ulong, User> inRoom = [];
 
         static bool roomSearch = false;
@@ -1188,7 +1187,7 @@ namespace NeonNetwork.Online
         {
             raceWinnered = true;
             raceHappening = false;
-            var winner = inRoom.Values.Where(x => x.racing).OrderBy(user => user.racePB).DefaultIfEmpty(null).First();
+            var winner = inRoom.Values.Where(x => x.racing).OrderBy(user => user.racePB).FirstOrDefault();
             if (winner == null)
                 return;
             if (winner.racePB > racePB)
@@ -1634,7 +1633,7 @@ namespace NeonNetwork.Online
 
         #endregion RoomID
 
-        // !!!!!!!!!     PATCHES      !!!!!!!!!
+        // !!!!!!!!!      PATCHES      !!!!!!!!!
 
         public static void Patch(bool run = true)
         {
@@ -1740,8 +1739,8 @@ namespace NeonNetwork.Online
         static bool firstFrame = false;
         static int usedFrame = 0;
         static GhostFrame lastFrame = null;
-        public static int fakeIndex = 0;
-        public static DateTime lastFrameT = DateTime.MinValue;
+        static int fakeIndex = 0;
+        static DateTime lastFrameT = DateTime.MinValue;
 
         static void UploadFrame(GhostFrame[] ___m_recordingFrames, bool ___m_dontRecord, ref int ___m_recordingIndex)
         {
@@ -2090,8 +2089,8 @@ namespace NeonNetwork.Online
 
         static void LoadRaceLevel()
         {
-            if (raceTime <= 0)
-                raceLeniency = 0;
+            //if (raceTime <= 0)
+            //    raceLeniency = 0;
             raceLastFinish = game.GetCurrentLevelTimerMicroseconds();
             PlayJingles();
             CheckRaceFinish();

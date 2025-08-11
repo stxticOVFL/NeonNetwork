@@ -17,7 +17,7 @@ using UnityEngine;
 
 namespace NeonNetwork
 {
-    public static class Extensions
+    internal static class Extensions
     {
         public static Vector3 ScreenToCanvasPosition(this Canvas canvas, Vector3 screenPosition)
         {
@@ -58,7 +58,7 @@ namespace NeonNetwork
         }
     }
 
-    public class Transition(float speed, Func<float, float, float, float> ease, Dictionary<float, Action> timestamps)
+    internal class Transition(float speed, Func<float, float, float, float> ease, Dictionary<float, Action> timestamps)
     {
         public Dictionary<float, Action> timestamps = timestamps;
         Func<float, float, float, float> easeFunc = ease;

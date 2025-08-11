@@ -14,7 +14,7 @@ using static MelonLoader.MelonLogger;
 
 namespace NeonNetwork.Objects.Popups
 {
-    public class Popup : MenuScreen
+    internal class Popup : MenuScreen
     {
         public static Popup instance;
 
