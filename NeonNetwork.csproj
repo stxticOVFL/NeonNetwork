@@ -1,183 +1,72 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{5016CAE0-C72B-4F39-B9C8-26046A2D5B00}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>NeonNetwork</RootNamespace>
-    <AssemblyName>NeonNetwork</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <NoWarn>CS0162</NoWarn>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\x64\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>latest</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>bin\x64\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>latest</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\MelonLoader\net35\0Harmony.dll</HintPath>
-    </Reference>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\Assembly-CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
-    </Reference>
-    <Reference Include="MelonLoader">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\MelonLoader\net35\MelonLoader.dll</HintPath>
-    </Reference>
-    <Reference Include="NeonLite, Version=3.0.10.4, Culture=neutral, processorArchitecture=AMD64">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Mods\NeonLite.dll</HintPath>
-    </Reference>
-    <Reference Include="SecretShop">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Mods\SecretShop.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Net" />
-    <Reference Include="Unity.TextMeshPro, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\Unity.TextMeshPro.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AnimationModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AudioModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UnityWebRequestModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.UI.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UIModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.UIModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UniverseLib.Mono">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Neon White\Mods\UniverseLib.Mono.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Helpers.cs" />
-    <Compile Include="NeonNetwork.cs" />
-    <Compile Include="Objects\Other\Nametag.cs" />
-    <Compile Include="Objects\Other\RaceSidebar.cs" />
-    <Compile Include="Objects\Other\Version.cs" />
-    <Compile Include="Objects\Popups\Components\Button.cs" />
-    <Compile Include="Objects\Popups\Components\Input.cs" />
-    <Compile Include="Objects\Popups\Components\StageButton.cs" />
-    <Compile Include="Objects\Popups\FriendSelect.cs" />
-    <Compile Include="Objects\Popups\Loading.cs" />
-    <Compile Include="Objects\Popups\Popup.cs" />
-    <Compile Include="Objects\Popups\PWInput.cs" />
-    <Compile Include="Objects\Popups\RaceStart.cs" />
-    <Compile Include="Objects\Popups\RoomJoin.cs" />
-    <Compile Include="Objects\Popups\RoomCreate.cs" />
-    <Compile Include="Objects\Popups\StageSelector.cs" />
-    <Compile Include="Objects\Popups\TextButtons.cs" />
-    <Compile Include="Objects\Popups\UserEdit.cs" />
-    <Compile Include="Objects\Popups\Welcome.cs" />
-    <Compile Include="Objects\Other\LoadingIcon\DisplayLoadIcon.cs" />
-    <Compile Include="Objects\Other\LoadingIcon\RenderLoadIcon.cs" />
-    <Compile Include="Objects\SidePanel\Contents\Contents.cs" />
-    <Compile Include="Objects\SidePanel\Contents\Home.cs" />
-    <Compile Include="Objects\SidePanel\Contents\RoomBase.cs" />
-    <Compile Include="Objects\SidePanel\Contents\RoomHost.cs" />
-    <Compile Include="Objects\SidePanel\Contents\RoomsList.cs" />
-    <Compile Include="Objects\SidePanel\Contents\RoomVisit.cs" />
-    <Compile Include="Objects\SidePanel\SidePanel.cs" />
-    <Compile Include="Objects\Status.cs" />
-    <Compile Include="Objects\StatusHandler.cs" />
-    <Compile Include="Online\Encryption.cs" />
-    <Compile Include="Online\Info.cs" />
-    <Compile Include="Online\Leaderboard.cs" />
-    <Compile Include="Online\Online.cs" />
-    <Compile Include="Online\Rooms.cs" />
-    <Compile Include="Online\NWIOEventHandler.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Resources\r.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>r.resx</DependentUpon>
-    </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\r.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>r.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include=".editorconfig" />
-    <None Include="Resources\neonnetwork" />
-    <None Include="Resources\pubkey" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Resources\date.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="bdgen.py" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy $(TargetDir)$(TargetName).* "C:\Program Files (x86)\Steam\steamapps\common\Neon White\Mods"</PostBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PreBuildEvent>py $(SolutionDir)bdgen.py $(SolutionDir)/Resources/date.txt</PreBuildEvent>
-  </PropertyGroup>
+﻿<Project>
+    <PropertyGroup>
+        <!-- The name of the mod -->
+        <NWName>NeonNetwork</NWName>
+        <NWAuthor>stxticOVFL</NWAuthor>
+        <BuildDate>$([System.DateTime]::UtcNow.ToString('yyyy.MM.dd HH:mm:ss'))</BuildDate>
+        <NWVersion>$(BuildDate.Replace(':', '').Replace(' ', '+'))</NWVersion>
+        <!-- The name of the *DLL* -->
+        <AssemblyName>$(NWName)</AssemblyName>
+
+        <!-- Root namespace of the mod -->
+        <RootNamespace>$(AssemblyName)</RootNamespace>
+
+        <!-- The folder to copy the DLL to, e.g. Mods or Plugins -->
+        <NWOutput Condition="'$(NWOutput)' == ''">
+            Mods
+        </NWOutput>
+        <!-- Whether or not to add NeonLite as a reference. Either true or false. Looks in NWDir/Mods -->
+        <NWNeonLite Condition="'$(NWNeonLite)' == ''">
+            true
+        </NWNeonLite>
+        <!-- Whether or not to add UniverseLib as a reference. Either true or false.
+             Looks in NWDir/Mods and NWDir/UserLibs -->
+        <NWUniLib Condition="'$(NWUniLib)' == ''">
+            true
+        </NWUniLib>
+
+        <!-- Whether or not to fill in the assembly info for you. This should usually be true.
+             This also controls GenerateAssemblyInfo -->
+        <NWAssembly Condition="'$(NWAssembly)' == ''">
+            true
+        </NWAssembly>
+        <!-- The name of the class that inherits the relevant Melon class, relative to the root namespace.
+             Usually this matches the name of the root namespace.
+             Only used if NWAssembly is on -->
+        <NWMelonClass>$(RootNamespace)</NWMelonClass>
+        <!-- The color to show in the log for the project. #RRGGBB.
+             Only used if NWAssembly is on -->
+        <NWColor>#ABFFF8</NWColor>
+        <!-- The author color to show in the log. #RRGGBB.
+             Only used if NWAssembly is on -->
+        <NWAuthorColor>#E17386</NWAuthorColor>
+
+    </PropertyGroup>
+
+    <Import Project="NWCommon.targets" />
+
+    <!-- Non-NWCommon properties, items, etc go here -->
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>12.0</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Add further references by using $(NWManaged) and $(NWDirectory): -->
+        <Reference Include="$(NWManaged)/Unity.TextMeshPro.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.AnimationModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.AssetBundleModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.AudioModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.UnityWebRequestModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.IMGUIModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.UI.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.UIModule.dll" Private="false" />
+        <Reference Include="$(NWDirectory)/Mods/SecretShop.dll" Private="false" />
+
+        <None Include=".editorconfig" />
+        <None Include="Resources\neonnetwork" />
+        <None Include="Resources\pubkey" />
+    </ItemGroup>
+
+    <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
 </Project>

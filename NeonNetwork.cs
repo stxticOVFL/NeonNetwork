@@ -11,6 +11,7 @@ using NeonNetwork.Objects.SidePanel;
 using NeonNetwork.Objects.Other;
 using NeonNetwork.Resources;
 using System.Runtime.CompilerServices;
+using System.Reflection;
 
 namespace NeonNetwork
 {
@@ -23,7 +24,7 @@ namespace NeonNetwork
         internal static bool connected = false;
         internal static bool logged = false;
 
-        internal static string Version => r.date;
+        internal static string Version => instance.MelonAssembly.Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 
 #if DEBUG
         internal static bool DEBUG { get { return Settings.debug.Value; } }
