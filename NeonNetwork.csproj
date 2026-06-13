@@ -45,7 +45,7 @@
              Editor scripts are skipped.
              Leave empty if no Unity scripts. Advanced users only! -->
         <NWUnityScripts>
-            UnityProject/Assets/Scripts/
+
         </NWUnityScripts>
     </PropertyGroup>
 

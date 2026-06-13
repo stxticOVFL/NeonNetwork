@@ -1515,7 +1515,7 @@ namespace NeonNetwork.Online
                         break;
                     }
 
-                case LobbyChatOp.RaceCancel: // race is called off 
+                case LobbyChatOp.RaceCancel: // race is called off
                     {
                         foreach (var user in inRoom.Values.AddItem(selfUser))
                         {
@@ -1677,7 +1677,7 @@ namespace NeonNetwork.Online
             Patching.TogglePatch(connected && inRoom.Any(), typeof(GhostRecorder), "SaveLevelData", SkipLRBranch, Patching.PatchTarget.Transpiler);
 
             if (run)
-                Patching.RunPatches();
+                Patching.RunPatches(!isRacing);
         }
 
 
@@ -1861,7 +1861,7 @@ namespace NeonNetwork.Online
                 {
                     yield return new(OpCodes.Ldarg_0);
                     yield return new(OpCodes.Ldfld, NeonLite.Helpers.Field(typeof(GhostRecorder), "m_recordingIndex"));
-                    yield return new(OpCodes.Stsfld, NeonLite.Helpers.Field(typeof(Rooms), "usedFrame")); // store the frame b4 
+                    yield return new(OpCodes.Stsfld, NeonLite.Helpers.Field(typeof(Rooms), "usedFrame")); // store the frame b4
                 }
                 yield return code;
                 if (code.Calls(method))
@@ -1917,6 +1917,8 @@ namespace NeonNetwork.Online
         #region RacePatches
         static void SetupRaceStaging(this MenuScreenStaging staging)
         {
+            NeonNetwork.Logger.DebugMsg($"SetupRaceStaging");
+
             var rushT = staging.levelRushDisplayHolder.transform;
             if (!isRacing)
             {
@@ -1929,10 +1931,14 @@ namespace NeonNetwork.Online
                 return;
             }
 
+            NeonNetwork.Logger.DebugMsg($"find and setkey");
             staging.levelRushDisplayHolder.transform.Find("LevelRushProgress (1)").GetComponent<AxKLocalizedText>().SetKey("NeonNetwork/RACE_TITLE");
             string localized = LocalizationManager.GetTranslation(raceLevel.GetLevelDisplayName());
             staging.levelRushText.text = localized;
             var countdown = 3f;
+
+            NeonNetwork.Logger.DebugMsg($"force? {ForceCountdown} how long {raceCountdown}");
+
             if (ForceCountdown)
             {
                 racePB = long.MaxValue;
