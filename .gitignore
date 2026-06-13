@@ -432,3 +432,5 @@ FodyWeavers.xsd
 # Neon White specific
 NWConfig.props
 !NWConfig.props.base
+
+version.txt

@@ -1,8 +1,8 @@
 <Project>
     <!-- you shouldn't have to look in here unless you're working on NWCommon itself -->
 
-    <Import Project="NWConfig.props" Condition="Exists('NWConfig.props')" />
-    <Import Project="NWConfig.props.base" Condition="!Exists('NWConfig.props')" />
+    <Import Project="../NWConfig.props" Condition="Exists('../NWConfig.props')" />
+    <Import Project="../NWConfig.props.base" Condition="!Exists('../NWConfig.props')" />
 
     <PropertyGroup>
         <NWDirectory>$(NWDirectory.Trim())</NWDirectory>
@@ -20,8 +20,12 @@
         <NWAuthor>$(NWAuthor.Trim())</NWAuthor>
         <NWVersion>$(NWVersion.Trim())</NWVersion>
 
+        <NWUnityScripts>$(NWUnityScripts.Trim())</NWUnityScripts>
+
         <BaseOutputPath>out/bin/</BaseOutputPath>
         <BaseIntermediateOutputPath>out/obj/</BaseIntermediateOutputPath>
+
+        <DefineConstants>$(DefineConstants);NWCOMMON_MOD</DefineConstants>
     </PropertyGroup>
 
     <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.props" />
@@ -43,10 +47,30 @@
     </PropertyGroup>
 
 
-    <!-- For projects that use Unity they usually don't want to compile alongside the mod -->
     <ItemGroup>
+        <!-- For projects that use Unity they usually don't want to compile alongside the mod -->
         <Compile Remove="UnityProject/**/*.cs" />
         <None Remove="UnityProject/**/*" />
+
+        <Compile Remove=".NWCommon/**/*.cs"/>
+        <None Remove=".NWCommon/**/*"/>
+
+        <Compile Remove="Resources/**/*.cs" />
+        <None Remove="Resources/**/*" />
+        <EmbeddedResource Include="Resources/**/*" Exclude="@(EmbeddedResource)" />
+
+        <CompilerVisibleProperty Include="RootNamespace"/>
+        <CompilerVisibleProperty Include="MSBuildProjectDirectory"/>
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SourceItemGroup"/>
+
+        <ProjectReference Include=".NWCommon/NWCGenerators.csproj"
+                OutputItemType="Analyzer"
+                ReferenceOutputAssembly="false" />
+    </ItemGroup>
+    <!-- HOWEVER if we EXPLICITLY define UnityScripts support... -->
+    <ItemGroup Condition="'$(NWUnityScripts)' != ''">
+        <Compile Include="$(NWUnityScripts)/**/*.cs" />
+        <Compile Remove="$(NWUnityScripts)/**/Editor/**/*.cs" />
     </ItemGroup>
 
     <Target Name="ValidateProperties" BeforeTargets="BeforeBuild">
@@ -62,15 +86,17 @@
             Text="NWXbox is not set! Assuming Steam build."
             Condition="'$(NWXbox)' == ''"
         />
+
+        <ItemGroup>
+            <AdditionalFiles Include="@(EmbeddedResource)" SourceItemGroup="NWCResource"
+                Condition="$([System.String]::new('%(RelativeDir)').StartsWith('Resources'))" />
+        </ItemGroup>
     </Target>
 
     <!-- Basic references -->
     <ItemGroup>
         <!-- add all system references here -->
-        <Reference Include="$(NWDirectory)/MelonLoader/Managed/System.*" Private="false" />
         <Reference Include="$(NWManaged)/System.*" Private="false" />
-        <Reference Include="$(NWDirectory)/MelonLoader/Managed/mscorlib.dll" Private="false" />
-        <Reference Include="$(NWDirectory)/MelonLoader/Managed/netstandard.dll" Private="false" />
         <Reference Include="$(NWManaged)/mscorlib.dll" Private="false" />
         <Reference Include="$(NWManaged)/netstandard.dll" Private="false" />
 
@@ -83,8 +109,8 @@
         <Reference Include="$(NWManaged)/UnityEngine.CoreModule.dll" Private="false" />
 
         <!-- conditionals -->
-        <Reference Condition="'$(NWXbox)' == 'true'" Include="$(ManagedFolder)/BitCode.dll" Private="false" />
-        <Reference Condition="'$(NWXbox)' == 'true'" Include="$(ManagedFolder)/BitCode.Platform.PlayFab.dll" Private="false" />
+        <Reference Condition="'$(NWXbox)' == 'true'" Include="$(NWManaged)/BitCode.dll" Private="false" />
+        <Reference Condition="'$(NWXbox)' == 'true'" Include="$(NWManaged)/BitCode.Platform.PlayFab.dll" Private="false" />
 
         <Reference Condition="'$(NWNeonLite)' == 'true'" Include="$(NWDirectory)/Mods/NeonLite.dll" Private="false" />
 
@@ -105,6 +131,12 @@
         <DefineConstants>$(DefineConstants);XBOX</DefineConstants>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DebugType>embedded</DebugType>
+        <DebugSymbols>true</DebugSymbols>
+        <EmbedAllSources>true</EmbedAllSources>
+    </PropertyGroup>
+
     <Target Name="MoveDLL" AfterTargets="AfterBuild" Condition="Exists('$(TargetDir)$(TargetName).dll') And Exists('$(NWDirectory)') And '$(NWCopy)' == 'true'">
       <Message Text="Copying $(TargetName).dll to $(NWOutput) folder..." Importance="high" />
       <Delete Condition="Exists('$(NWDirectory)/$(NWOutput)/$(TargetName).dll.old')" Files="$(NWDirectory)/$(NWOutput)/$(TargetName).dll.old" />
@@ -119,7 +151,6 @@
         <Company>$(NWAuthor)</Company>
         <!-- replace the + if they want to follow neonlite's system -->
         <Version>$(NWVersion.Replace('+', '.'))</Version>
-
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
         <InformationalVersion>$(NWVersion)</InformationalVersion>
 

@@ -1,15 +1,11 @@
-﻿
-#if DEBUG
+﻿#if DEBUG
 #define ENABLE_PROFILER
 #endif
 
 using I2.Loc;
 using MelonLoader;
 using NeonLite.Modules;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using Unity.Profiling;
 using UnityEngine;
@@ -56,6 +52,21 @@ namespace NeonNetwork
                    .GroupBy(x => x.groupIndex)
                    .Select(g => g.Select(x => x.v));
         }
+
+        [Conditional("DEBUG")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void DebugMsg(this MelonLogger.Instance log, string msg)
+        {
+            if (NeonNetwork.DEBUG)
+            {
+                log.Msg(msg);
+                UnityEngine.Debug.Log($"[NeonNetwork] {msg}");
+            }
+        }
+
+        [Conditional("DEBUG")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void DebugMsg(this MelonLogger.Instance log, object obj) => DebugMsg(log, obj.ToString());
     }
 
     internal class Transition(float speed, Func<float, float, float, float> ease, Dictionary<float, Action> timestamps)
@@ -248,20 +259,5 @@ namespace NeonNetwork
                 //NeonNetwork.Logger.Msg($"{name} - {watch.Elapsed.TotalMilliseconds}ms");
             }
         }
-
-        [Conditional("DEBUG")]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DebugMsg(this MelonLogger.Instance log, string msg)
-        {
-            if (NeonNetwork.DEBUG)
-            {
-                log.Msg(msg);
-                UnityEngine.Debug.Log($"[NeonLite] {msg}");
-            }
-        }
-
-        [Conditional("DEBUG")]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DebugMsg(this MelonLogger.Instance log, object obj) => DebugMsg(log, obj.ToString());
     }
 }

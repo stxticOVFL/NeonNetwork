@@ -1,17 +1,17 @@
-﻿using MelonLoader;
+using MelonLoader;
 using UnityEngine;
 using NeonNetwork.Objects;
-using System.Collections;
-using System;
-using System.IO;
 using NeonNetwork.Objects.Popups;
-using Steamworks;
 using NeonNetwork.Online;
 using NeonNetwork.Objects.SidePanel;
 using NeonNetwork.Objects.Other;
-using NeonNetwork.Resources;
-using System.Runtime.CompilerServices;
 using System.Reflection;
+using System.Runtime.InteropServices;
+
+[assembly: ComVisible(false)]
+[assembly: Guid("5016cae0-c72b-4f39-b9c8-26046a2d5b00")]
+
+[assembly: MelonOptionalDependencies("SecretShop")]
 
 namespace NeonNetwork
 {
@@ -24,7 +24,9 @@ namespace NeonNetwork
         internal static bool connected = false;
         internal static bool logged = false;
 
-        internal static string Version => instance.MelonAssembly.Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+        internal static string Version { get; private set; }
+
+        internal static NeonLite.Modules.Localization.LocaleCategory LC;
 
 #if DEBUG
         internal static bool DEBUG { get { return Settings.debug.Value; } }
@@ -33,6 +35,7 @@ namespace NeonNetwork
 #endif
         public override void OnInitializeMelon()
         {
+            Version = Info.Version;
             instance = this;
             Logger.Msg($"Version {Version}");
 
@@ -40,9 +43,13 @@ namespace NeonNetwork
             NeonLite.Modules.Anticheat.Register(MelonAssembly);
 #endif
             NeonLite.NeonLite.LoadModules(MelonAssembly);
-            NeonLite.Patching.AddPatch(typeof(MainMenu), "SetState", Init, NeonLite.Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(MainMenu), "SetState", Init, Patching.PatchTarget.Prefix);
 
             Settings.Register();
+
+            const string URL = "https://raw.githubusercontent.com/stxticOVFL/NeonNetwork/beta/Resources/locale.csv";
+            LC = NeonLite.Modules.Localization.GetLocale_Stream("NeonNetwork", NeonLite.Modules.Localization.Reader_CSVStream,
+                Resources.locale.GetStream(), URL);
         }
 
         public override void OnLateInitializeMelon()
@@ -53,7 +60,7 @@ namespace NeonNetwork
             obj.transform.localScale = Vector3.one;
             nnHolder = obj.transform;
 
-            bundle = AssetBundle.LoadFromMemory(Resources.r.assetbundle);
+            bundle = AssetBundle.LoadFromStream(Resources.neonnetwork.GetStream());
         }
 
         public override void OnUpdate()
@@ -75,8 +82,9 @@ namespace NeonNetwork
                 return;
             instance.Initialize();
 
-            NeonLite.Patching.RemovePatch(typeof(MainMenu), "SetState", Init);
+            Patching.RemovePatch(typeof(MainMenu), "SetState", Init);
         }
+
         public void Initialize()
         {
             //yield return new WaitForSeconds(0.5f);

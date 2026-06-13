@@ -3,8 +3,8 @@
         <!-- The name of the mod -->
         <NWName>NeonNetwork</NWName>
         <NWAuthor>stxticOVFL</NWAuthor>
-        <BuildDate>$([System.DateTime]::UtcNow.ToString('yyyy.MM.dd HH:mm:ss'))</BuildDate>
-        <NWVersion>$(BuildDate.Replace(':', '').Replace(' ', '+'))</NWVersion>
+        <!-- NWVersion is set below -->
+
         <!-- The name of the *DLL* -->
         <AssemblyName>$(NWName)</AssemblyName>
 
@@ -41,9 +41,15 @@
              Only used if NWAssembly is on -->
         <NWAuthorColor>#E17386</NWAuthorColor>
 
+        <!-- A path to Unity scripts to additionally compile. Useful for mods with independent UIs.
+             Editor scripts are skipped.
+             Leave empty if no Unity scripts. Advanced users only! -->
+        <NWUnityScripts>
+            UnityProject/Assets/Scripts/
+        </NWUnityScripts>
     </PropertyGroup>
 
-    <Import Project="NWCommon.targets" />
+    <Import Project=".NWCommon/NWCommon.targets" />
 
     <!-- Non-NWCommon properties, items, etc go here -->
     <PropertyGroup>
@@ -67,6 +73,59 @@
         <None Include="Resources\neonnetwork" />
         <None Include="Resources\pubkey" />
     </ItemGroup>
+
+    <Target Name="RWVersion" BeforeTargets="GenerateNWAssembly">
+        <ReadLinesFromFile Condition="Exists('version.txt')"
+            File="version.txt" >
+            <Output
+                TaskParameter="Lines"
+                ItemName="VersionLines"/>
+        </ReadLinesFromFile>
+
+        <PropertyGroup>
+            <TodayComp>$([System.DateTime]::UtcNow.ToString('yyyyMMdd'))</TodayComp>
+        </PropertyGroup>
+
+        <PropertyGroup Condition="'@(VersionLines)' != ''">
+            <VersionLinesP>@(VersionLines)</VersionLinesP>
+            <VersionTxtDT>$(VersionLinesP.Split(';')[0])</VersionTxtDT>
+            <VersionTxtBI>$(VersionLinesP.Split(';')[1])</VersionTxtBI>
+        </PropertyGroup>
+
+        <PropertyGroup Condition="'@(VersionLines)' == ''">
+            <VersionTxtDT>$(TodayComp)</VersionTxtDT>
+            <VersionTxtBI>0</VersionTxtBI>
+        </PropertyGroup>
+
+        <PropertyGroup Condition="'$(TodayComp)' != '$(VersionTxtDT)'">
+            <VersionTxtDT>$(TodayComp)</VersionTxtDT>
+            <VersionTxtBI>0</VersionTxtBI>
+        </PropertyGroup>
+
+        <PropertyGroup>
+            <VersionTxtBI>$([MSBuild]::Add($(VersionTxtBI), 1))</VersionTxtBI>
+
+            <BuildDate>$([System.DateTime]::UtcNow.ToString('yyyy.MM.dd'))</BuildDate>
+            <NWVersion>$(BuildDate)+$(VersionTxtBI)</NWVersion>
+            <Version>$(NWVersion.Replace('+', '.'))</Version>
+        </PropertyGroup>
+
+        <ItemGroup>
+            <VersionTxtOut Include="$(VersionTxtDT)" />
+            <VersionTxtOut Include="$(VersionTxtBI)" />
+        </ItemGroup>
+
+        <WriteLinesToFile
+            File="version.txt"
+            Lines="@(VersionTxtOut)"
+            Overwrite="true"
+            Encoding="Unicode" />
+    </Target>
+
+    <Target Name="PrintVersion" BeforeTargets="BeforeBuild">
+      <Message Text="Version: $(NWVersion)" Importance="high" />
+    </Target>
+
 
     <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
 </Project>

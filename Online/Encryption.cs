@@ -20,7 +20,7 @@ namespace NeonNetwork.Online
             try
             {
                 static byte[] db64(string str) => Convert.FromBase64String(str);
-                var key = Encoding.UTF8.GetString(Resources.r.pubkey).Split().Last().Split('|');
+                var key = Resources.pubkey.GetUTF8String().Split().Last().Split('|');
                 var param = new RSAParameters
                 {
                     Modulus = db64(key[0]),
