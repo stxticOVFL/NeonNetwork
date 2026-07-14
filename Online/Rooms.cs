@@ -11,6 +11,7 @@ using NeonNetwork.Objects.SidePanel.Contents;
 using Steamworks;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -462,7 +463,7 @@ namespace NeonNetwork.Online
         public static bool isRacing = false;
         public static bool autoroom = false;
 
-        const int NETCODE_VERSION = 4;
+        const int NETCODE_VERSION = 5;
         static readonly string AUTOROOM_NAME = $"!!!!!!!!!!AUTOROOM!!!!!!!!!!{NETCODE_VERSION}";
 
         #region Exposed
@@ -583,7 +584,7 @@ namespace NeonNetwork.Online
             isPrivate = false;
             SteamMatchmaking.SetLobbyData(roomSID, "public", "y");
             SteamMatchmaking.SetLobbyType(roomSID, ELobbyType.k_ELobbyTypePublic);
-            chatMsgWriter.Flush();
+
             chatMsgWriter.Write((byte)LobbyChatOp.Public);
             chatMsgWriter.Write(id);
             SendLobbyMsg();
@@ -597,7 +598,7 @@ namespace NeonNetwork.Online
             GenerateID();
             SteamMatchmaking.SetLobbyData(roomSID, "public", "n");
             SteamMatchmaking.SetLobbyType(roomSID, ELobbyType.k_ELobbyTypeInvisible);
-            chatMsgWriter.Flush();
+
             chatMsgWriter.Write((byte)LobbyChatOp.Private);
             chatMsgWriter.Write(id);
             chatMsgWriter.Write(secret);
@@ -608,7 +609,7 @@ namespace NeonNetwork.Online
         {
             if (owner != Online.steamID)
                 return;
-            chatMsgWriter.Flush();
+
             chatMsgWriter.Write((byte)LobbyChatOp.Kick);
             chatMsgWriter.Write(steamID);
             SendLobbyMsg();
@@ -619,7 +620,6 @@ namespace NeonNetwork.Online
             Unready(true);
             if (!forced)
             {
-                chatMsgWriter.Flush();
                 chatMsgWriter.Write((byte)LobbyChatOp.Leave);
 
                 SendLobbyMsg();
@@ -705,7 +705,11 @@ namespace NeonNetwork.Online
                 return;
 
             if (isRacing && !raceAccepted)
+            {
                 raceTime = Math.Max(0, raceTime - Time.deltaTime);
+                racingIGT += Time.deltaTime;
+                racingRTA += Time.unscaledDeltaTime;
+            }
 
             foreach (CSteamID p in invited.Keys.ToList())
             {
@@ -721,7 +725,6 @@ namespace NeonNetwork.Online
             {
                 pingTimer -= PING_TIMER;
 
-                chatMsgWriter.Flush();
                 chatMsgWriter.Write((byte)LobbyChatOp.Ping);
                 SendLobbyMsg();
             }
@@ -754,12 +757,11 @@ namespace NeonNetwork.Online
                 raceLevel = level;
             // isRacing = true;
             raceWinnered = true;
-            raceTime = time;
+            raceTimeLim = raceTime = time;
             raceLeniency = leniency;
             raceCountdown = countdown;
             racePB = long.MaxValue;
 
-            chatMsgWriter.Flush();
             chatMsgWriter.Write((byte)LobbyChatOp.RaceCall);
             chatMsgWriter.Write(raceLevel.levelID);
             chatMsgWriter.Write(time);
@@ -850,11 +852,14 @@ namespace NeonNetwork.Online
         public static string roomName;
         internal static ushort id;
         internal static ushort secret;
-        static CSteamID owner;
+        public static CSteamID owner;
         public static bool connected = false;
 
         public static LevelData raceLevel;
+        public static double raceTimeLim;
         public static double raceTime = -1;
+        public static double racingRTA = 0;
+        public static double racingIGT = 0;
         public static int raceLeniency;
         public static bool raceAccepted;
         public static float raceCountdown;
@@ -1011,8 +1016,9 @@ namespace NeonNetwork.Online
             }
         }
 
-        static void SendLobbyMsg()
+        public static void SendLobbyMsg()
         {
+            chatMsgWriter.Flush();
             var arr = chatMsgWStream.ToArray();
             NeonNetwork.Logger.DebugMsg($"[STEAM] Sending opcode {arr[0]}");
             SteamMatchmaking.SendLobbyChatMsg(roomSID, arr, arr.Length);
@@ -1162,6 +1168,7 @@ namespace NeonNetwork.Online
                 x.racing = true;
                 RoomBase.GetUser(x).SetLocation();
             });
+            racingRTA = racingIGT = 0;
             raceHappening = true;
             isRacing = true;
             Patch();
@@ -1201,7 +1208,7 @@ namespace NeonNetwork.Online
                 SteamMatchmaking.SetLobbyData(roomSID, "racing", "n");
         }
 
-        enum LobbyChatOp
+        public enum LobbyChatOp
         {
             // meta
             Level = 0x00,
@@ -1227,13 +1234,45 @@ namespace NeonNetwork.Online
             RaceCancel = 0x1F,
 
             TextChat = 0x40,
+
+            Custom = 0xFE
+        }
+
+        public delegate void ChatMsgHandler(BinaryReader reader, BinaryWriter writer, ulong steamID);
+
+        static readonly Dictionary<ushort, ChatMsgHandler> customHandlers = [];
+        static readonly Dictionary<LobbyChatOp, List<ChatMsgHandler>> postHandlers = [];
+
+        public static bool RegisterCustomHandler(ushort id, ChatMsgHandler handler)
+        {
+            if (customHandlers.ContainsKey(id))
+                return false;
+            customHandlers.Add(id, handler);
+            return true;
+        }
+        public static void UnregisterCustomHandler(ushort id)
+        {
+            customHandlers.Remove(id);
+        }
+
+        public static void RegisterPostHandler(LobbyChatOp chatOp, ChatMsgHandler handler)
+        {
+            if (!postHandlers.ContainsKey(chatOp))
+                postHandlers.Add(chatOp, []);
+            postHandlers[chatOp].Add(handler);
+        }
+        public static void UnregisterPostHandler(LobbyChatOp chatOp, ChatMsgHandler handler)
+        {
+            if (!postHandlers.ContainsKey(chatOp))
+                return;
+            postHandlers[chatOp].Remove(handler);
         }
 
         const int CHAT_BUFFER_SIZE = 4096;
         static readonly byte[] chatMsgBuffer = new byte[CHAT_BUFFER_SIZE];
         static readonly BinaryReader chatMsgReader = new(new MemoryStream(chatMsgBuffer, false));
         static readonly MemoryStream chatMsgWStream = new(CHAT_BUFFER_SIZE);
-        static readonly BinaryWriter chatMsgWriter = new(chatMsgWStream);
+        public static readonly BinaryWriter chatMsgWriter = new(chatMsgWStream);
 
         static void OnChatMsg(LobbyChatMsg_t msg)
         {
@@ -1276,7 +1315,7 @@ namespace NeonNetwork.Online
                 case LobbyChatOp.Public: // become public
                     SetRP();
                     if (!fromOwner || fromSelf)
-                        return;
+                        break;
                     isPrivate = false;
                     Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_PUBLIC_GUEST");
                     id = chatMsgReader.ReadUInt16();
@@ -1284,7 +1323,7 @@ namespace NeonNetwork.Online
                 case LobbyChatOp.Private: // become private
                     SetRP();
                     if (!fromOwner || fromSelf)
-                        return;
+                        break;
                     isPrivate = true;
                     Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_PRIVATE_GUEST");
                     id = chatMsgReader.ReadUInt16();
@@ -1363,9 +1402,8 @@ namespace NeonNetwork.Online
                             }
                         }
                     }
-                    // inRoom.Remove(UID);
-                    // SteamNetworking.CloseP2PSessionWithUser((CSteamID)UID);
-                    Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_KICKED_OTHER", pairs: [new("{0}", Online.GetName(UID), false)], sound: "HINT_RESET");
+                    else
+                        Status.ShowStatus("NeonNetwork/ROOMS_NOTIF_KICKED_OTHER", pairs: [new("{0}", Online.GetName(UID), false)], sound: "HINT_RESET");
                     break;
                 case LobbyChatOp.AskSecret: // secret requestd
                     if (!fromOwner || connected)
@@ -1412,7 +1450,7 @@ namespace NeonNetwork.Online
                 case LobbyChatOp.RaceCall: // start
                     {
                         if (!fromOwner || fromSelf)
-                            return;
+                            break;
 
                         raceLevel = game.GetGameData().GetLevelData(chatMsgReader.ReadString());
                         if (!raceLevel)
@@ -1421,9 +1459,10 @@ namespace NeonNetwork.Online
                             chatMsgWriter.Write((byte)LobbyChatOp.RaceError); // we can't :( custom level we don't have, prolly
                             chatMsgWriter.Write("NeonNetwork/RACE_ERROR_NULLEVEL");
                             SendLobbyMsg();
-                            return;
+                            break;
                         }
-                        raceTime = chatMsgReader.ReadSingle();
+
+                        raceTimeLim = raceTime = chatMsgReader.ReadSingle();
                         raceLeniency = chatMsgReader.ReadInt32();
                         raceCountdown = chatMsgReader.ReadInt32();
                         SidePanel.attention = true;
@@ -1450,7 +1489,7 @@ namespace NeonNetwork.Online
                         u.raceReady = true;
                         u.raceError = null;
 
-                        if (!fromSelf && raceAccepted && inRoom.Values.All(user => user.raceReady))
+                        if (!raceHappening && !fromSelf && raceAccepted && inRoom.Values.All(user => user.raceReady))
                             StartRace();
 
                         break;
@@ -1485,7 +1524,7 @@ namespace NeonNetwork.Online
                 case LobbyChatOp.RacePB: // new PB
                     {
                         if (!raceHappening || fromSelf)
-                            return;
+                            break;
 
                         var u = inRoom[sentID.m_SteamID];
                         u.racePB = chatMsgReader.ReadInt64();
@@ -1497,7 +1536,7 @@ namespace NeonNetwork.Online
                 case LobbyChatOp.RaceLastRun: // last run finished
                     {
                         if (!raceHappening)
-                            return;
+                            break;
 
                         if (!fromSelf)
                         {
@@ -1528,7 +1567,7 @@ namespace NeonNetwork.Online
                         }
 
                         if (!fromOwner || fromSelf)
-                            return;
+                            break;
 
                         Unready(true);
                         Patch();
@@ -1541,7 +1580,21 @@ namespace NeonNetwork.Online
 
                         break;
                     }
-                    #endregion
+                #endregion
+                case LobbyChatOp.Custom:
+                    if (customHandlers.TryGetValue(chatMsgReader.ReadUInt16(), out var handler))
+                    {
+                        handler.Invoke(chatMsgReader, chatMsgWriter, sentID.m_SteamID);
+                    }
+                    break;
+            }
+
+            if (postHandlers.TryGetValue(opcode, out var handlers))
+            {
+                chatMsgReader.BaseStream.Position = 0;
+
+                foreach (var handler in handlers)
+                    handler.Invoke(chatMsgReader, chatMsgWriter, sentID.m_SteamID);
             }
         }
 
@@ -2032,7 +2085,7 @@ namespace NeonNetwork.Online
                     SendLobbyMsg();
                 }
 
-                if (inRoom.Values.All(user => user.raceReady))
+                if (!raceHappening && inRoom.Values.All(user => user.raceReady))
                     StartRace(true);
             }
             else if (isRacing)

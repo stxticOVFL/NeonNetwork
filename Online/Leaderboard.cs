@@ -34,6 +34,15 @@ namespace NeonNetwork.Online
 
         static void Activate(bool _)
         {
+            try
+            {
+                CheckCustoms();
+            }
+            catch { }
+
+            if (!customs)
+                return;
+
             Patching.AddPatch(typeof(Leaderboards), "GetUsername", ApplyReplacement, Patching.PatchTarget.Transpiler);
             Patching.AddPatch(typeof(Leaderboards), "SetModeLevelRush", ApplyReplacement, Patching.PatchTarget.Transpiler);
             Patching.AddPatch(typeof(Leaderboards), "SetModeGlobalNeonScore", ApplyReplacement, Patching.PatchTarget.Transpiler);
@@ -46,13 +55,14 @@ namespace NeonNetwork.Online
             Patching.AddPatch(typeof(Leaderboards), "UpdateFilterButtons", PreFilter, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(Leaderboards), "DisableAllButtons", UpdateGUI, Patching.PatchTarget.Postfix);
 
-            try
-            {
-                customs = typeof(CustomLevelData) != null;
-            }
-            catch { }
+            Patching.AddPatch(typeof(SteamLBFiles), "DownloadUGC", PreventIfCustom, Patching.PatchTarget.Prefix);
 
             texNNOnly = NeonNetwork.bundle.LoadAsset<Sprite>("Assets/Sprites/LBNetworkOnly.png");
+        }
+
+        static void CheckCustoms()
+        {
+            customs = typeof(CustomLevelData) != null;
         }
 
 #if !XBOX
@@ -117,14 +127,17 @@ namespace NeonNetwork.Online
 
             public ScoreData ToScoreData()
             {
-                var ret = new ScoreData();
-                ret._ranking = index;
-                ret._scoreValueMilliseconds = Utils.ConvertMicrosecondsToMilliseconds(time);
-                ret._oldRanking = -1;
-                ret._username = Online.GetName(ulong.Parse(steam_id));
-                ret._profilePicture = Online.GetPFP(ulong.Parse(steam_id));
+                var ret = new ScoreData
+                {
+                    _ranking = index,
+                    _scoreValueMilliseconds = Utils.ConvertMicrosecondsToMilliseconds(time),
+                    _oldRanking = -1,
+                    _username = Online.GetName(ulong.Parse(steam_id)),
+                    _profilePicture = Online.GetPFP(ulong.Parse(steam_id)),
 
-                ret._userScore = ourScore;
+                    _userScore = ourScore
+                };
+
                 if (ourScore)
                     ret._oldRanking = oldIndex;
                 else
@@ -199,6 +212,14 @@ namespace NeonNetwork.Online
             currentScores = scores;
             currentStartIndex = startIndex;
             currentOldIndex = -1;
+        }
+
+        static bool PreventIfCustom(object[] __args)
+        {
+            var levelData = (LevelData)__args.FirstOrDefault(x => x != null && x is LevelData);
+            if (levelData == null)
+                return true; // go ahead anyway
+            return !IsCustomStage(levelData, null);
         }
 
         static bool PreFilter(Leaderboards __instance, LevelData ___currentLevelData)
@@ -337,7 +358,7 @@ namespace NeonNetwork.Online
             }
 
             SetVariables(lb, level);
- 
+
             FetchRequest sub = new()
             {
                 level_id = currentLevel.levelID,
@@ -411,7 +432,7 @@ namespace NeonNetwork.Online
                 currentLB.DisplayScores_AsyncRecieve([], false); // honestly save the trouble
             else if (currentStartIndex == start)
             {
-                // we don't have to fetch 
+                // we don't have to fetch
                 currentLB.DisplayScores_AsyncRecieve([.. currentScores.Select(x => x.ToScoreData())], currentScores.Length > 0);
                 return;
             }

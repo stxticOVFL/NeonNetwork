@@ -52,8 +52,8 @@
         <Compile Remove="UnityProject/**/*.cs" />
         <None Remove="UnityProject/**/*" />
 
-        <Compile Remove=".NWCommon/**/*.cs"/>
-        <None Remove=".NWCommon/**/*"/>
+        <Compile Remove="-NWCommon/**/*.cs"/>
+        <None Remove="-NWCommon/**/*"/>
 
         <Compile Remove="Resources/**/*.cs" />
         <None Remove="Resources/**/*" />
@@ -63,7 +63,7 @@
         <CompilerVisibleProperty Include="MSBuildProjectDirectory"/>
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SourceItemGroup"/>
 
-        <ProjectReference Include=".NWCommon/NWCGenerators.csproj"
+        <ProjectReference Include="-NWCommon/NWCGenerators.csproj"
                 OutputItemType="Analyzer"
                 ReferenceOutputAssembly="false" />
     </ItemGroup>

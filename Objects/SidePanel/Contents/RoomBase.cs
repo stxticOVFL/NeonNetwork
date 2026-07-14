@@ -327,7 +327,7 @@ namespace NeonNetwork.Objects.SidePanel.Contents
             {
                 this.user = user;
                 var steamID = user.steamID.m_SteamID;
-                name = steamID.ToString();  
+                name = steamID.ToString();
                 nameText = transform.Find("Name").GetComponent<TextMeshProUGUI>();
 
                 GetComponentInChildren<RawImage>().texture = Online.Online.GetPFP(steamID);

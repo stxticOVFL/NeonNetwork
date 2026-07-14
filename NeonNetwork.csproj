@@ -49,7 +49,7 @@
         </NWUnityScripts>
     </PropertyGroup>
 
-    <Import Project=".NWCommon/NWCommon.targets" />
+    <Import Project="-NWCommon/NWCommon.targets" />
 
     <!-- Non-NWCommon properties, items, etc go here -->
     <PropertyGroup>
